@@ -54,8 +54,19 @@
             </div>
             <div class="mt-10 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
                 @foreach($stats as $stat)
+                    @php
+                        $isSimpleNumeric = preg_match('/^\d+%?$/', trim($stat['value']));
+                        $numericVal = $isSimpleNumeric ? intval($stat['value']) : null;
+                        $suffix = $isSimpleNumeric && str_ends_with(trim($stat['value']), '%') ? '%' : '';
+                    @endphp
                     <div class="rounded-lg border border-white/10 bg-white/8 p-4">
-                        <div class="text-2xl font-semibold text-white">{{ $stat['value'] }}</div>
+                        @if($isSimpleNumeric)
+                            <div class="text-2xl font-semibold text-white">
+                                <span class="stat-value" data-target="{{ $numericVal }}">0</span><span class="stat-suffix">{{ $suffix }}</span>
+                            </div>
+                        @else
+                            <div class="text-2xl font-semibold text-white">{{ $stat['value'] }}</div>
+                        @endif
                         <div class="mt-1 text-sm leading-5 text-slate-400">{{ $stat['label'] }}</div>
                     </div>
                 @endforeach
@@ -129,6 +140,57 @@
         </div>
     </div>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const els = document.querySelectorAll('.stat-value');
+    if(!els.length) return;
+
+    const animateTo = (el, target, duration = 1400) => {
+        let start = null;
+        const from = 0;
+        const step = (timestamp) => {
+            if (!start) start = timestamp;
+            const progress = Math.min((timestamp - start) / duration, 1);
+            const value = Math.floor(progress * (target - from) + from);
+            el.textContent = value;
+            if (progress < 1) requestAnimationFrame(step);
+            else el.textContent = target;
+        };
+        requestAnimationFrame(step);
+    };
+
+    const io = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const el = entry.target;
+                const t = parseInt(el.getAttribute('data-target') || '0', 10);
+                if (!isNaN(t)) animateTo(el, t);
+                obs.unobserve(el);
+            }
+        });
+    }, { threshold: 0.5 });
+
+    els.forEach(e => {
+        e.style.display = 'inline-block';
+        e.style.transform = 'translateY(6px)';
+        e.style.opacity = '0';
+        e.style.transition = 'transform .6s ease, opacity .6s ease';
+        // small reveal observer
+        const r = new IntersectionObserver((entries, ro) => {
+            entries.forEach(en => {
+                if (en.isIntersecting) {
+                    e.style.transform = 'translateY(0)';
+                    e.style.opacity = '1';
+                    ro.unobserve(e);
+                }
+            });
+        }, { threshold: 0.5 });
+        r.observe(e);
+        io.observe(e);
+    });
+});
+</script>
 
 <section class="border-y border-white/10 bg-slate-950/45">
     <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
