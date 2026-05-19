@@ -20,6 +20,7 @@
         <button id="stopBtn" disabled>إيقاف</button>
         <input id="manualInput" placeholder="أكتب رسالتك هنا" style="width:40%">
         <button id="sendBtn">إرسال</button>
+        <button id="serverTtsBtn">اختبار TTS على الخادم</button>
     </div>
 
     <p><strong>النص الملتقط:</strong></p>
@@ -100,6 +101,29 @@
                 replyEl.textContent = 'خطأ في الاتصال';
             }
         }
+
+        // Server-side TTS test
+        document.getElementById('serverTtsBtn').addEventListener('click', async () => {
+            const text = document.getElementById('manualInput').value || transcriptEl.textContent || 'مرحبا';
+            replyEl.textContent = 'جاري توليد ملف صوتي...';
+            try {
+                const res = await fetch('{{ route("voice.tts") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({ text })
+                });
+                const j = await res.json();
+                if (!j.ok) { replyEl.textContent = 'خطأ: ' + (j.error || res.statusText); return; }
+                replyEl.textContent = 'تم الإنشاء: تشغيل الصوت...';
+                const audio = new Audio(j.url);
+                audio.play();
+            } catch (e) {
+                replyEl.textContent = 'فشل إنشاء الصوت';
+            }
+        });
     </script>
 </body>
 </html>

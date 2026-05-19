@@ -54,4 +54,5 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 // Simple voice assistant UI and API (client-side STT/TTS PoC)
 Route::get('/voice', [VoiceController::class, 'show'])->name('voice');
 Route::post('/voice/ai', [VoiceController::class, 'respond'])->name('voice.respond');
-Route::post('/voice/tts', [VoiceController::class, 'tts'])->name('voice.tts');
+// Allow GET for quick browser testing; prefer POST in production.
+Route::match(['get', 'post'], '/voice/tts', [VoiceController::class, 'tts'])->name('voice.tts');
