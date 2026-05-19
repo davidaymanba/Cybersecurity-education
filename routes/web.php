@@ -5,10 +5,11 @@ use App\Http\Controllers\Api\AiChatController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\ProgressController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentController; 
 use App\Models\Lesson;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use App\Http\Controllers\VoiceController;
 
 Route::get('/', fn () => view('landing', [
     'lessons' => Schema::hasTable('lessons') ? Lesson::take(3)->get() : collect(),
@@ -49,3 +50,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/quizzes', [AdminController::class, 'storeQuiz'])->name('quizzes.store');
     Route::get('/app-api/analytics', AnalyticsController::class)->name('api.analytics');
 });
+
+// Simple voice assistant UI and API (client-side STT/TTS PoC)
+Route::get('/voice', [VoiceController::class, 'show'])->name('voice');
+Route::post('/voice/ai', [VoiceController::class, 'respond'])->name('voice.respond');
+Route::post('/voice/tts', [VoiceController::class, 'tts'])->name('voice.tts');
