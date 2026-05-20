@@ -33,24 +33,26 @@
 @endphp
 
 <section class="relative overflow-hidden">
-    <div class="mx-auto grid min-h-[calc(100vh-68px)] max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.02fr_.98fr] lg:py-20">
+    <div class="absolute inset-0 -z-20 bg-gradient-to-br from-slate-900 via-cyan-900/40 to-slate-800/60"></div>
+    <div class="mx-auto grid min-h-[calc(100vh-68px)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
         <div>
-            <p class="mb-5 inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100">
+            <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100">
                 AI-assisted cybersecurity learning platform
             </p>
-            <h1 class="max-w-4xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-6xl">
+            <h1 class="max-w-4xl text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-6xl md:text-7xl">
                 Learn cybersecurity with intelligent guidance, practice, and measurable progress.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
                 CyberLearn AI helps students study core security topics through structured lessons, AI tutoring, adaptive quizzes, and research-ready analytics comparing single-agent and multi-agent learning experiences.
             </p>
             <div class="mt-9 flex flex-wrap gap-3">
-                <a href="{{ route('register') }}" class="rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:bg-cyan-300">
+                <a href="{{ route('register') }}" class="rounded-full bg-cyan-400 px-6 py-3 font-semibold text-slate-950 shadow-xl shadow-cyan-500/20 transition hover:bg-cyan-300">
                     Start learning
                 </a>
-                <a href="{{ route('login') }}" class="rounded-lg border border-white/15 px-5 py-3 font-semibold text-white transition hover:border-white/30 hover:bg-white/10">
+                <a href="{{ route('login') }}" class="rounded-full border border-white/15 px-6 py-3 font-semibold text-white transition hover:border-white/30 hover:bg-white/10">
                     Research login
                 </a>
+                <a href="#tracks" class="ml-2 rounded-full px-4 py-3 text-sm font-medium text-slate-200 hover:underline">Explore tracks</a>
             </div>
             <div class="mt-10 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
                 @foreach($stats as $stat)
@@ -74,10 +76,20 @@
         </div>
 
         <div class="relative">
-            <div class="absolute -inset-6 -z-10 rounded-[2rem] bg-cyan-400/10 blur-3xl"></div>
-            <div class="rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-2xl shadow-slate-950/60 backdrop-blur">
-                <div class="rounded-xl border border-white/10 bg-slate-950">
-                    <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <div class="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-tr from-cyan-500/8 via-slate-900/6 to-transparent blur-3xl"></div>
+            <div class="rounded-2xl border border-white/6 bg-gradient-to-b from-slate-900/80 to-slate-950/70 p-4 shadow-2xl shadow-slate-950/60 backdrop-blur">
+                <div class="rounded-xl border border-white/10 bg-slate-950 overflow-hidden">
+                    <div class="px-4 py-6">
+                        <!-- Compact illustration -->
+                        <div class="mx-auto max-w-sm text-center opacity-90">
+                            <svg class="mx-auto h-36 w-36 text-cyan-300" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                <rect x="2" y="14" width="60" height="36" rx="4" stroke="currentColor" stroke-opacity="0.12" stroke-width="2" />
+                                <circle cx="18" cy="32" r="6" fill="currentColor" opacity="0.10" />
+                                <path d="M34 22h14M34 30h14M34 38h10" stroke="currentColor" stroke-opacity="0.14" stroke-width="1.4" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-white/8 px-4 py-3">
                         <div class="flex items-center gap-2">
                             <span class="h-3 w-3 rounded-full bg-rose-400"></span>
                             <span class="h-3 w-3 rounded-full bg-amber-300"></span>
