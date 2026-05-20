@@ -29,6 +29,7 @@ return [
     'metric_quiz_results' => 'نتائج الاختبارات',
     'metric_progress' => 'متابعة التقدم',
     'metric_ai_interactions' => 'تفاعلات الذكاء الاصطناعي',
+    'model_hint' => 'نموذج ثلاثي الأبعاد يدور تلقائيًا — اسحب للتدوير، قرص لتكبير',
     // nav
     'dashboard' => 'لوحة التحكم',
     'lessons' => 'الدروس',

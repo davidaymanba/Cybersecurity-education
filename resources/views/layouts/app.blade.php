@@ -6,17 +6,18 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? __('messages.site_name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased {{ app()->getLocale() === 'ar' ? 'rtl' : '' }}">
-    <div class="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,.18),transparent_36%),radial-gradient(circle_at_85%_15%,rgba(59,130,246,.14),transparent_30%),linear-gradient(180deg,#020617,#0f172a_55%,#111827)]"></div>
+    <div class="fixed inset-0 -z-10 bg-gradient-to-b from-[#041225] to-[#071426]"></div>
 
-    <header class="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur">
+    <header class="sticky top-0 z-40 border-b border-white/6 bg-transparent">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
             <a href="{{ route('landing') }}" class="flex items-center gap-3 font-semibold tracking-tight">
                 <span class="grid h-9 w-9 place-items-center rounded-lg bg-cyan-400 text-slate-950">CL</span>
                 <span>{{ __('messages.site_name') }}</span>
             </a>
-            <nav class="hidden items-center gap-5 text-sm text-slate-300 md:flex">
+            <nav class="hidden items-center gap-4 text-sm text-slate-300 md:flex">
                 @auth
                     <a href="{{ route('dashboard') }}" class="hover:text-white">{{ __('messages.dashboard') }}</a>
                     <a href="{{ route('lessons.index') }}" class="hover:text-white">{{ __('messages.lessons') }}</a>

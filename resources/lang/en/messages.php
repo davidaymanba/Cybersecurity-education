@@ -29,6 +29,7 @@ return [
     'metric_quiz_results' => 'Quiz results',
     'metric_progress' => 'Progress tracking',
     'metric_ai_interactions' => 'AI interactions',
+    'model_hint' => 'Auto-rotating 3D model — drag to rotate, pinch to zoom',
     // nav
     'dashboard' => 'Dashboard',
     'lessons' => 'Lessons',

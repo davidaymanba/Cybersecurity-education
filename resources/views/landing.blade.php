@@ -75,79 +75,20 @@
             </div>
         </div>
 
-        <div class="relative">
-            <div class="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-tr from-cyan-500/8 via-slate-900/6 to-transparent blur-3xl"></div>
-            <div class="rounded-2xl border border-white/6 bg-gradient-to-b from-slate-900/80 to-slate-950/70 p-4 shadow-2xl shadow-slate-950/60 backdrop-blur">
-                <div class="rounded-xl border border-white/10 bg-slate-950 overflow-hidden">
-                    <div class="px-4 py-6">
-                        <!-- Compact illustration -->
-                        <div class="mx-auto max-w-sm text-center opacity-90">
-                            <svg class="mx-auto h-36 w-36 text-cyan-300" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                <rect x="2" y="14" width="60" height="36" rx="4" stroke="currentColor" stroke-opacity="0.12" stroke-width="2" />
-                                <circle cx="18" cy="32" r="6" fill="currentColor" opacity="0.10" />
-                                <path d="M34 22h14M34 30h14M34 38h10" stroke="currentColor" stroke-opacity="0.14" stroke-width="1.4" stroke-linecap="round" />
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between border-t border-white/8 px-4 py-3">
-                        <div class="flex items-center gap-2">
-                            <span class="h-3 w-3 rounded-full bg-rose-400"></span>
-                            <span class="h-3 w-3 rounded-full bg-amber-300"></span>
-                            <span class="h-3 w-3 rounded-full bg-emerald-400"></span>
-                        </div>
-                        <span class="text-xs font-medium text-slate-400">{{ __('messages.learning_console') }}</span>
-                    </div>
-
-                    <div class="grid gap-4 p-4 md:grid-cols-[.82fr_1.18fr]">
-                        <aside class="rounded-lg border border-white/10 bg-white/5 p-4">
-                            <div class="mb-4 flex items-center justify-between">
-                                <span class="text-xs font-semibold uppercase tracking-[.18em] text-cyan-200">{{ __('messages.tracks') }}</span>
-                                <span class="rounded-full bg-emerald-300/10 px-2 py-1 text-xs text-emerald-200">{{ __('messages.active') }}</span>
-                            </div>
-                            <div class="space-y-3">
-                                @foreach($tracks as $track)
-                                    <div class="rounded-lg bg-slate-900 px-3 py-3">
-                                        <div class="text-sm font-medium text-white">{{ $track['title'] }}</div>
-                                        <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                                            <div class="h-full rounded-full bg-cyan-300" style="width: {{ 52 + ($loop->index * 10) }}%"></div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        </aside>
-
-                        <div class="space-y-4">
-                            <div class="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
-                                <div class="flex items-start justify-between gap-4">
-                                    <div>
-                                        <p class="text-sm font-semibold text-cyan-100">{{ __('messages.multi_agent_mode') }}</p>
-                                        <h2 class="mt-2 text-2xl font-semibold text-white">{{ __('messages.specialized_support') }}</h2>
-                                    </div>
-                                    <span class="rounded-lg bg-cyan-300 px-3 py-2 text-sm font-bold text-slate-950">AI</span>
-                                </div>
-                                <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                                    @foreach($agents as $agent)
-                                        <div class="rounded-lg border border-white/10 bg-slate-950/70 p-3">
-                                            <div class="text-sm font-semibold text-white">{{ $agent['name'] }}</div>
-                                            <p class="mt-2 text-xs leading-5 text-slate-400">{{ $agent['role'] }}</p>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <div class="rounded-lg border border-white/10 bg-white/5 p-4">
-                                    <p class="text-sm text-slate-400">{{ __('messages.current_quiz_score') }}</p>
-                                    <div class="mt-2 text-3xl font-semibold text-white">86%</div>
-                                </div>
-                                <div class="rounded-lg border border-white/10 bg-white/5 p-4">
-                                    <p class="text-sm text-slate-400">{{ __('messages.learning_confidence') }}</p>
-                                    <div class="mt-2 text-3xl font-semibold text-emerald-200">High</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="flex justify-center lg:justify-end">
+            <div class="w-full max-w-2xl hero-3d rounded-2xl p-0 border border-white/6 bg-transparent">
+                <model-viewer src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+                              alt="3D learning console"
+                              auto-rotate
+                              auto-rotate-delay="0"
+                              rotation-per-second="1.6"
+                              camera-controls
+                              interaction-prompt="auto"
+                              shadow-intensity="1"
+                              exposure="1"
+                              style="width:100%; height:520px; display:block; background:transparent;">
+                </model-viewer>
+                <div class="mt-3 text-center text-xs text-[var(--muted)]">{{ __('messages.model_hint') }}</div>
             </div>
         </div>
     </div>
