@@ -5,6 +5,7 @@ if (window.cyberLesson) {
     const form = document.querySelector('#chat-form');
     const input = document.querySelector('#chat-message');
     let activeAgent = window.cyberLesson.agent;
+    let history = [];
 
     document.querySelectorAll('.agent-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
@@ -39,6 +40,7 @@ if (window.cyberLesson) {
             headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json'},
             body: JSON.stringify({
                 message,
+                history,
                 lesson_id: window.cyberLesson.lessonId,
                 agent_type: activeAgent,
                 platform_version: window.cyberLesson.version,
@@ -46,7 +48,13 @@ if (window.cyberLesson) {
         });
         const data = await response.json();
         log.lastElementChild.remove();
-        addMessage(data.message || 'The AI service is currently unavailable.');
+        const reply = data.message || 'The AI service is currently unavailable.';
+        addMessage(reply);
+        history = [
+            ...history,
+            {role: 'user', content: message},
+            {role: 'assistant', content: reply},
+        ].slice(-20);
     });
 }
 

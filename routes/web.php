@@ -38,6 +38,7 @@ Route::middleware([\App\Http\Middleware\SetLocale::class])->group(function () {
         Route::get('/quizzes/{quiz}', [StudentController::class, 'quiz'])->name('quizzes.show');
         Route::post('/quizzes/{quiz}', [StudentController::class, 'submitQuiz'])->name('quizzes.submit');
         Route::get('/results/{result}', [StudentController::class, 'result'])->name('results.show');
+        Route::post('/cyber-bot', AiChatController::class)->middleware('throttle:20,1')->name('cyber.bot');
         Route::post('/app-api/ai/chat', AiChatController::class)->middleware('throttle:20,1')->name('api.ai.chat');
         Route::post('/app-api/progress', ProgressController::class)->name('api.progress');
     });

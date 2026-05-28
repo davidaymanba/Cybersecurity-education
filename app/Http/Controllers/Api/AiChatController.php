@@ -14,10 +14,16 @@ class AiChatController extends Controller
     {
         $data = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
+            'history' => ['nullable', 'array', 'max:20'],
+            'history.*.role' => ['required_with:history', 'in:user,assistant'],
+            'history.*.content' => ['required_with:history', 'string', 'max:4000'],
             'lesson_id' => ['nullable', 'exists:lessons,id'],
-            'agent_type' => ['required', 'in:single_tutor,navigation,explanation,video'],
-            'platform_version' => ['required', 'in:single,multi'],
+            'agent_type' => ['nullable', 'in:single_tutor,navigation,explanation,video'],
+            'platform_version' => ['nullable', 'in:single,multi'],
         ]);
+
+        $data['agent_type'] ??= 'single_tutor';
+        $data['platform_version'] ??= 'single';
 
         $lesson = isset($data['lesson_id']) ? Lesson::find($data['lesson_id']) : null;
 
@@ -26,7 +32,8 @@ class AiChatController extends Controller
             $lesson,
             $data['message'],
             $data['agent_type'],
-            $data['platform_version']
+            $data['platform_version'],
+            $data['history'] ?? []
         ));
     }
 }
