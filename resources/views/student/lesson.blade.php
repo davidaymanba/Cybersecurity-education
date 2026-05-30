@@ -58,7 +58,18 @@
             <button data-agent="video" class="agent-tab rounded-lg bg-slate-950/70 px-2 py-2 text-xs">Video</button>
         </div>
         <div id="chat-log" class="h-80 space-y-3 overflow-y-auto rounded-lg bg-slate-950/70 p-3 text-sm">
-            <div class="rounded-lg bg-cyan-400/10 p-3 text-cyan-50">Ask about the lesson, request a simpler example, or get the next step.</div>
+            <div class="rounded-lg bg-cyan-400/10 p-3 text-cyan-50">
+                Hello!<br>
+                I am <strong>Cyber Mentor</strong>, your specialized cybersecurity study assistant.<br><br>
+                I can help you build a personalized study plan, explain security concepts, and suggest practical exercises.<br>
+                Tell me: what is your current experience level, and what is your cybersecurity goal?
+            </div>
+        </div>
+        <div id="quick-replies" class="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" data-message-en="I need a cybersecurity learning plan." data-message-ar="أحتاج خطة لتعلم الأمن السيبراني." class="quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300">Create plan</button>
+            <button type="button" data-message-en="Explain a cybersecurity topic in simple terms." data-message-ar="اشرح لي موضوعاً في الأمن السيبراني بطريقة بسيطة." class="quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300">Explain topic</button>
+            <button type="button" data-message-en="Share useful cybersecurity learning resources with links." data-message-ar="اعطني مصادر مفيدة لتعلم الأمن السيبراني مع روابط." class="quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300">Give resources</button>
+            <button type="button" data-message-en="Quiz me with safe beginner cybersecurity questions." data-message-ar="اختبرني بأسئلة آمنة للمبتدئين في الأمن السيبراني." class="quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300">Quiz me</button>
         </div>
         <form id="chat-form" class="mt-3">
             <textarea id="chat-message" class="h-24 w-full resize-none rounded-lg border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none focus:border-cyan-300" placeholder="Ask the AI..."></textarea>

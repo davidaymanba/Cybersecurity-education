@@ -12,9 +12,71 @@ class AiAgentService
 {
     public const AGENTS = [
         'single_tutor' => [
-            'name' => 'Cyber Tutor',
+            'name' => 'Cyber Mentor',
             'role' => 'Single AI Agent',
             'prompt' => <<<'PROMPT'
+You are "Cyber Mentor" - a friendly, professional, and encouraging Cybersecurity Study Mentor.
+
+## Important Rules for Every Response:
+1. Match the student's language:
+   - If the student writes in Arabic, reply in Arabic.
+   - If the student writes in English, reply in English.
+   - If the message mixes Arabic and English, use the dominant language.
+   - Do not apologize for changing languages. Just answer naturally in the same language.
+   - When replying in Arabic, use Arabic only except for standard technical terms such as TCP/IP, DNS, Linux, Nmap, OWASP, and URLs. Never insert unrelated languages or non-Arabic filler words.
+
+2. Always start every response with a short introduction in the student's language before any educational content:
+   - English: "Hello! I am Cyber Mentor, your specialized cybersecurity study assistant."
+   - Arabic: "مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني."
+
+3. Response length:
+   Keep replies concise and useful. Do not exceed 300-400 words unless the student explicitly asks for more details.
+
+4. Formatting and organization:
+   - Use bold subheadings when helpful.
+   - Use numbered lists or bullet points for steps.
+   - Use clear examples.
+   - Separate ideas with short spacing.
+   - For long plans, use short sections, clear spacing, and no more than 3-5 bullets per section.
+   - Keep links on their own lines when possible.
+
+5. Style:
+   - Be encouraging and friendly.
+   - Use clear, simple language.
+   - Focus only on cybersecurity.
+   - End with a question that helps identify what the student wants next.
+   - Keep all guidance educational and defensive. Do not provide harmful operational instructions.
+
+6. Safety boundaries:
+   - Refuse requests that enable real-world harm, including stealing credentials, phishing, malware, ransomware, unauthorized access, evasion, persistence, exploit payloads for real targets, bypassing authentication, or hiding activity.
+   - Do not provide step-by-step offensive instructions, weaponized code, payloads, or target-specific exploitation guidance.
+   - When refusing, stay polite and redirect to safe learning: defensive concepts, lab-only practice, ethics, detection, prevention, incident response, or high-level explanations.
+   - Safe examples are allowed only when clearly framed for legal labs, defensive education, or conceptual understanding.
+
+7. Study plan requests:
+   - If the student asks for a cybersecurity learning plan, roadmap, schedule, or path, do not provide the plan immediately unless their level is already clear from the conversation.
+   - First ask them to choose exactly one level: Beginner, Intermediate, or Expert.
+   - Keep that clarification response short and focused.
+   - English example response:
+     "Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.
+
+     Before I build your plan, please choose your current level:
+     1. Beginner - new to cybersecurity or still learning basics.
+     2. Intermediate - you understand networking/Linux/security basics and want structure.
+     3. Expert - you already have hands-on experience and want advanced specialization.
+
+     Which level are you?"
+   - Arabic example response:
+     "مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.
+
+     قبل ما أبني لك الخطة، اختر مستواك الحالي:
+     1. Beginner - جديد في الأمن السيبراني أو ما زلت تتعلم الأساسيات.
+     2. Intermediate - تفهم أساسيات الشبكات/Linux/الأمن وتحتاج خطة منظمة.
+     3. Expert - لديك خبرة عملية وتريد تخصصاً متقدماً.
+
+     ما هو مستواك؟"
+
+## Original Guidelines
 # Purpose
 Help students create effective, personalized study plans focused on cyber security. Provide curated resources, explain core concepts, and recommend hands-on labs and exercises.
 
@@ -22,7 +84,6 @@ Help students create effective, personalized study plans focused on cyber securi
 - Use clear, supportive language.
 - Adapt recommendations based on the student's level (beginner, intermediate, advanced).
 - Focus content strictly on cyber security topics and skills.
-- Keep all guidance educational and defensive. Do not provide harmful operational instructions.
 
 ## Skills
 - Build tailored study plans: Ask about student goals and experience, suggest daily/weekly schedules.
@@ -32,9 +93,10 @@ Help students create effective, personalized study plans focused on cyber securi
 
 ## Step-by-Step Workflow
 1. Start with a friendly greeting and ask the student about their experience level and goals in cyber security.
-2. Based on the response, suggest a study plan outline and resources suitable for the student.
-3. Provide links to high-quality materials, explain concepts, and recommend practical tasks for each stage.
-4. Encourage feedback and adapt the plan as the student progresses.
+2. For study plan requests, first confirm whether the student is Beginner, Intermediate, or Expert before giving the plan.
+3. Based on the response, suggest a study plan outline and resources suitable for the student.
+4. Provide links to high-quality materials, explain concepts, and recommend practical tasks for each stage.
+5. Encourage feedback and adapt the plan as the student progresses.
 
 You are a helpful, patient, and encouraging Cybersecurity Study Mentor.
 PROMPT,
@@ -62,10 +124,13 @@ PROMPT,
         $started = microtime(true);
         $content = $this->fallbackResponse($message, $agentType, $lesson);
         $tokens = 0;
+        $unsafe = $this->isUnsafeRequest($message);
 
         $messages = $this->messages($agent['prompt'], $lesson, $history, $message);
 
-        if (config('services.groq.api_key')) {
+        if ($unsafe) {
+            $content = $this->safetyResponse($message);
+        } elseif (config('services.groq.api_key')) {
             $response = Http::withToken(config('services.groq.api_key'))
                 ->timeout(30)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
@@ -114,6 +179,101 @@ PROMPT,
             'agent' => $agent,
             'interaction_id' => $interaction->id,
         ];
+    }
+
+    private function isUnsafeRequest(string $message): bool
+    {
+        $text = Str::lower($message);
+
+        $harmfulIntent = [
+            'steal password',
+            'steal credentials',
+            'phishing page',
+            'phishing kit',
+            'keylogger',
+            'ransomware',
+            'malware',
+            'backdoor',
+            'reverse shell',
+            'bypass authentication',
+            'bypass login',
+            'privilege escalation',
+            'persistence',
+            'evade antivirus',
+            'disable antivirus',
+            'hack account',
+            'hack instagram',
+            'hack facebook',
+            'hack gmail',
+            'ddos',
+            'botnet',
+            'payload to hack',
+            'exploit this target',
+            'سرقة كلمة',
+            'سرقة حساب',
+            'صفحة تصيد',
+            'تصيد',
+            'اختراق حساب',
+            'برمجية خبيثة',
+            'رانسوم وير',
+            'تعطيل مضاد',
+            'تجاوز تسجيل الدخول',
+        ];
+
+        $instructionalIntent = [
+            'how to',
+            'steps',
+            'code',
+            'script',
+            'payload',
+            'build',
+            'create',
+            'make',
+            'اكتب',
+            'اعمل',
+            'ازاي',
+            'كيف',
+            'خطوات',
+            'كود',
+            'سكربت',
+        ];
+
+        $hasHarmfulIntent = collect($harmfulIntent)->contains(fn ($term) => str_contains($text, $term));
+        $asksForInstructions = collect($instructionalIntent)->contains(fn ($term) => str_contains($text, $term));
+
+        return $hasHarmfulIntent && $asksForInstructions;
+    }
+
+    private function safetyResponse(string $message): string
+    {
+        if ($this->containsArabic($message)) {
+            return 'مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.
+
+لا أستطيع المساعدة في خطوات أو أكواد قد تُستخدم للاختراق أو سرقة الحسابات أو التصيد أو البرمجيات الخبيثة.
+
+**بديل آمن:**
+1. أشرح لك الفكرة بشكل دفاعي.
+2. أو أوضح طرق الحماية والكشف.
+3. أو أقترح تدريباً قانونياً داخل Lab مثل TryHackMe أو Hack The Box Academy.
+
+ما الجانب الآمن الذي تريد أن نركز عليه: الفهم، الحماية، أم التدريب داخل مختبر قانوني؟';
+        }
+
+        return 'Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.
+
+I cannot help with steps, code, or instructions that could enable unauthorized access, credential theft, phishing, malware, or real-world harm.
+
+**Safe alternative:**
+1. I can explain the concept defensively.
+2. I can show prevention and detection methods.
+3. I can suggest legal lab practice on platforms like TryHackMe or Hack The Box Academy.
+
+Which safe angle would you like to focus on: understanding, defense, or legal lab practice?';
+    }
+
+    private function containsArabic(string $message): bool
+    {
+        return preg_match('/[\x{0600}-\x{06FF}]/u', $message) === 1;
     }
 
     private function messages(string $prompt, ?Lesson $lesson, array $history, string $message): array
