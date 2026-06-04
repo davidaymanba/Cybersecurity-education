@@ -47,13 +47,20 @@ You are "Cyber Mentor" - a friendly, professional, and encouraging Cybersecurity
    - End with a question that helps identify what the student wants next.
    - Keep all guidance educational and defensive. Do not provide harmful operational instructions.
 
-6. Safety boundaries:
+6. Intent handling:
+   - Treat short greetings and casual openers as greetings only. Examples: "hi", "hii", "hiii", "hello", "hey", "salam", "السلام عليكم", "اهلا", "أهلاً", "مرحبا".
+   - For a greeting-only message, reply with a warm greeting and briefly ask what cybersecurity topic, explanation, resource, quiz, or plan the student wants. Do not ask for Beginner/Intermediate/Expert unless the student explicitly asks for a plan.
+   - Only trigger the study-plan flow when the latest user message clearly asks for a plan, roadmap, schedule, learning path, curriculum, or uses Arabic equivalents like "خطة", "مسار", "جدول", "خارطة طريق".
+   - Do not infer a plan request from the default workflow, from a greeting, or from generic messages like "start", "help", "hiii", or "what can you do?".
+   - If the student says only "plan" or "خطة", that is an explicit study-plan request.
+
+7. Safety boundaries:
    - Refuse requests that enable real-world harm, including stealing credentials, phishing, malware, ransomware, unauthorized access, evasion, persistence, exploit payloads for real targets, bypassing authentication, or hiding activity.
    - Do not provide step-by-step offensive instructions, weaponized code, payloads, or target-specific exploitation guidance.
    - When refusing, stay polite and redirect to safe learning: defensive concepts, lab-only practice, ethics, detection, prevention, incident response, or high-level explanations.
    - Safe examples are allowed only when clearly framed for legal labs, defensive education, or conceptual understanding.
 
-7. Study plan requests:
+8. Study plan requests:
    - If the student asks for a cybersecurity learning plan, roadmap, schedule, or path, do not provide the plan immediately unless their level is already clear from the conversation.
    - First ask them to choose exactly one level: Beginner, Intermediate, or Expert.
    - Keep that clarification response short and focused.
@@ -92,11 +99,12 @@ Help students create effective, personalized study plans focused on cyber securi
 - Suggest practice exercises: Give practical tasks, such as setting up labs, exploring vulnerabilities in legal labs, or reviewing security news.
 
 ## Step-by-Step Workflow
-1. Start with a friendly greeting and ask the student about their experience level and goals in cyber security.
-2. For study plan requests, first confirm whether the student is Beginner, Intermediate, or Expert before giving the plan.
-3. Based on the response, suggest a study plan outline and resources suitable for the student.
-4. Provide links to high-quality materials, explain concepts, and recommend practical tasks for each stage.
-5. Encourage feedback and adapt the plan as the student progresses.
+1. Start with a friendly greeting. If the student only greets you, greet them back and ask how you can help with cybersecurity.
+2. Ask about experience level and goals only when it is relevant to the student's request, especially when they request a study plan.
+3. For study plan requests, first confirm whether the student is Beginner, Intermediate, or Expert before giving the plan.
+4. Based on the response, suggest a study plan outline and resources suitable for the student.
+5. Provide links to high-quality materials, explain concepts, and recommend practical tasks for each stage.
+6. Encourage feedback and adapt the plan as the student progresses.
 
 You are a helpful, patient, and encouraging Cybersecurity Study Mentor.
 PROMPT,
@@ -276,6 +284,32 @@ Which safe angle would you like to focus on: understanding, defense, or legal la
         return preg_match('/[\x{0600}-\x{06FF}]/u', $message) === 1;
     }
 
+    private function isGreetingOnly(string $message): bool
+    {
+        $text = trim(Str::lower($message));
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', '', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return preg_match('/^(h+i+|hello+|hey+|salam|السلام عليكم|اهلا|أهلا|أهلاً|مرحبا|مرحباً)$/u', $text) === 1;
+    }
+
+    private function isStudyPlanRequest(string $message): bool
+    {
+        $text = trim(Str::lower($message));
+
+        return collect([
+            'plan',
+            'roadmap',
+            'schedule',
+            'learning path',
+            'curriculum',
+            'خطة',
+            'مسار',
+            'جدول',
+            'خارطة طريق',
+        ])->contains(fn ($term) => str_contains($text, $term));
+    }
+
     private function messages(string $prompt, ?Lesson $lesson, array $history, string $message): array
     {
         $messages = [
@@ -299,6 +333,40 @@ Which safe angle would you like to focus on: understanding, defense, or legal la
 
     private function fallbackResponse(string $message, string $agentType, ?Lesson $lesson): string
     {
+        if ($this->isGreetingOnly($message)) {
+            if ($this->containsArabic($message)) {
+                return 'مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.
+
+كيف أقدر أساعدك اليوم؟ يمكنني شرح مفهوم، اقتراح مصادر، عمل اختبار قصير، أو بناء خطة إذا طلبت ذلك.';
+            }
+
+            return 'Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.
+
+How can I help you today? I can explain a concept, suggest resources, quiz you, or build a plan if you ask for one.';
+        }
+
+        if ($agentType === 'single_tutor' && $this->isStudyPlanRequest($message)) {
+            if ($this->containsArabic($message)) {
+                return 'مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.
+
+قبل ما أبني لك الخطة، اختر مستواك الحالي:
+1. Beginner - جديد في الأمن السيبراني أو ما زلت تتعلم الأساسيات.
+2. Intermediate - تفهم أساسيات الشبكات/Linux/الأمن وتحتاج خطة منظمة.
+3. Expert - لديك خبرة عملية وتريد تخصصاً متقدماً.
+
+ما هو مستواك؟';
+            }
+
+            return 'Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.
+
+Before I build your plan, please choose your current level:
+1. Beginner - new to cybersecurity or still learning basics.
+2. Intermediate - you understand networking/Linux/security basics and want structure.
+3. Expert - you already have hands-on experience and want advanced specialization.
+
+Which level are you?';
+        }
+
         return match ($agentType) {
             'navigation' => 'Start with the current lesson goals, complete the quiz, then continue to the next lesson in the sidebar. For this topic, focus on: '.($lesson?->summary ?? 'core cybersecurity foundations').'.',
             'video' => 'I can recommend the approved videos embedded for this lesson. Watch the first video, take notes on the key controls, then return for the quiz.',
