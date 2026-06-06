@@ -23,9 +23,12 @@
             <h2 class="text-xl font-semibold">AI agent usage</h2>
             <div class="mt-5 space-y-3">
                 @forelse($analytics['agent_usage'] as $agent => $count)
+                    @php
+                        $countValue = is_array($count) ? (int) ($count['total'] ?? count($count)) : (int) $count;
+                    @endphp
                     <div>
-                        <div class="mb-1 flex justify-between text-sm"><span>{{ str_replace('_', ' ', \Illuminate\Support\Str::title($agent)) }}</span><span>{{ $count }}</span></div>
-                        <div class="h-3 rounded bg-slate-800"><div class="h-3 rounded bg-cyan-400" style="width: {{ min(100, $count * 15) }}%"></div></div>
+                        <div class="mb-1 flex justify-between text-sm"><span>{{ str_replace('_', ' ', \Illuminate\Support\Str::title((string) $agent)) }}</span><span>{{ $countValue }}</span></div>
+                        <div class="h-3 rounded bg-slate-800"><div class="h-3 rounded bg-cyan-400" style="width: {{ min(100, $countValue * 15) }}%"></div></div>
                     </div>
                 @empty
                     <p class="text-sm text-slate-300">No AI interactions yet.</p>
@@ -36,7 +39,15 @@
             <h2 class="text-xl font-semibold">Recent quiz performance</h2>
             <div class="mt-4 space-y-3">
                 @forelse($analytics['quiz_performance'] as $result)
-                    <div class="rounded-lg bg-slate-950/60 p-3 text-sm"><span class="font-medium">{{ $result->quiz->lesson->title }}</span><span class="float-right">{{ $result->score }}%</span></div>
+                    @php
+                        $lessonTitle = is_array($result)
+                            ? ($result['lesson_title'] ?? 'Deleted lesson')
+                            : ($result->quiz?->lesson?->title ?? 'Deleted lesson');
+                        $score = is_array($result)
+                            ? (int) ($result['score'] ?? 0)
+                            : (int) ($result->score ?? 0);
+                    @endphp
+                    <div class="rounded-lg bg-slate-950/60 p-3 text-sm"><span class="font-medium">{{ $lessonTitle }}</span><span class="float-right">{{ $score }}%</span></div>
                 @empty
                     <p class="text-sm text-slate-300">No quiz data yet.</p>
                 @endforelse

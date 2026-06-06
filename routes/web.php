@@ -52,6 +52,11 @@ Route::middleware([\App\Http\Middleware\SetLocale::class])->group(function () {
         Route::delete('/lessons/{lesson}', [AdminController::class, 'deleteLesson'])->name('lessons.delete');
         Route::get('/quizzes', [AdminController::class, 'quizzes'])->name('quizzes');
         Route::post('/quizzes', [AdminController::class, 'storeQuiz'])->name('quizzes.store');
+        Route::put('/quizzes/{quiz}', [AdminController::class, 'updateQuiz'])->name('quizzes.update');
+        Route::delete('/quizzes/{quiz}', [AdminController::class, 'deleteQuiz'])->name('quizzes.delete');
+        Route::post('/quizzes/{quiz}/questions', [AdminController::class, 'storeQuestion'])->name('questions.store');
+        Route::put('/questions/{question}', [AdminController::class, 'updateQuestion'])->name('questions.update');
+        Route::delete('/questions/{question}', [AdminController::class, 'deleteQuestion'])->name('questions.delete');
         Route::get('/app-api/analytics', AnalyticsController::class)->name('api.analytics');
     });
 

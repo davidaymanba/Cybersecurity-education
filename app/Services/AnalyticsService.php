@@ -27,11 +27,18 @@ class AnalyticsService
                     ->first(),
                 'agent_usage' => AiInteraction::select('agent_type', DB::raw('count(*) as total'))
                     ->groupBy('agent_type')
-                    ->pluck('total', 'agent_type'),
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [$row->agent_type => (int) $row->total])
+                    ->all(),
                 'quiz_performance' => QuizResult::with('quiz.lesson')
                     ->latest()
                     ->take(8)
-                    ->get(),
+                    ->get()
+                    ->map(fn ($result) => [
+                        'lesson_title' => $result->quiz?->lesson?->title ?? 'Deleted lesson',
+                        'score' => (int) $result->score,
+                    ])
+                    ->all(),
             ];
         });
     }
