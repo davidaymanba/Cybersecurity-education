@@ -5,14 +5,14 @@ use App\Http\Controllers\Api\AiChatController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\ProgressController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\StudentController; 
+use App\Http\Controllers\StudentController;
+use App\Http\Controllers\VoiceController;
+use App\Http\Middleware\SetLocale;
 use App\Models\Lesson;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\App;
-use App\Http\Controllers\VoiceController;
 
-Route::middleware([\App\Http\Middleware\SetLocale::class])->group(function () {
+Route::middleware([SetLocale::class])->group(function () {
 
     Route::get('/', fn () => view('landing', [
         'lessons' => Schema::hasTable('lessons') ? Lesson::take(3)->get() : collect(),
@@ -40,6 +40,7 @@ Route::middleware([\App\Http\Middleware\SetLocale::class])->group(function () {
         Route::get('/results/{result}', [StudentController::class, 'result'])->name('results.show');
         Route::post('/cyber-bot', AiChatController::class)->middleware('throttle:20,1')->name('cyber.bot');
         Route::post('/app-api/ai/chat', AiChatController::class)->middleware('throttle:20,1')->name('api.ai.chat');
+        Route::post('/app-api/ai/chat/stream', [AiChatController::class, 'stream'])->middleware('throttle:20,1')->name('api.ai.chat.stream');
         Route::post('/app-api/progress', ProgressController::class)->name('api.progress');
     });
 
@@ -72,6 +73,7 @@ Route::middleware([\App\Http\Middleware\SetLocale::class])->group(function () {
         if (in_array($lang, $available)) {
             session(['locale' => $lang]);
         }
+
         return redirect()->back();
     })->name('lang.switch');
 

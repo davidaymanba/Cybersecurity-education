@@ -58,6 +58,12 @@ if (window.cyberLesson) {
         explanation: [],
         video: [],
     };
+    const agentLabels = {
+        single_tutor: 'Cyber Mentor',
+        navigation: 'Guide',
+        explanation: 'Tutor',
+        video: 'Video',
+    };
     let lastUserLanguage = 'en';
 
     const detectLanguage = (message) => /[\u0600-\u06FF]/.test(message) ? 'ar' : 'en';
@@ -268,6 +274,37 @@ if (window.cyberLesson) {
         return bubble;
     };
 
+    const showAgentRedirectHint = (meta, originalMessage) => {
+        if (!meta?.redirect || !meta.target_agent || !agentProfiles[meta.target_agent]) return;
+
+        const targetLabel = lastUserLanguage === 'ar'
+            ? (meta.target_label_ar || agentLabels[meta.target_agent])
+            : (meta.target_label || agentLabels[meta.target_agent]);
+        const hint = document.createElement('div');
+        hint.className = 'mr-8 rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3 text-sm text-cyan-50';
+        hint.dir = lastUserLanguage === 'ar' ? 'rtl' : 'ltr';
+        hint.innerHTML = `
+            <div class="${lastUserLanguage === 'ar' ? 'text-right' : 'text-left'}">
+                <p class="font-semibold text-cyan-100">${lastUserLanguage === 'ar' ? 'التبويب المناسب لهذا الطلب' : 'Best tab for this request'}</p>
+                <p class="mt-1 text-slate-300">${lastUserLanguage === 'ar' ? `افتح ${targetLabel} وأعد إرسال السؤال هناك.` : `Open ${targetLabel} and send this question there.`}</p>
+                <button type="button" class="mt-3 rounded-md bg-cyan-400 px-3 py-2 text-xs font-semibold text-slate-950">${lastUserLanguage === 'ar' ? `افتح ${targetLabel}` : `Open ${targetLabel}`}</button>
+            </div>
+        `;
+
+        hint.querySelector('button').addEventListener('click', () => {
+            activeAgent = meta.target_agent;
+            setTabStyles();
+            renderActiveAgent();
+            if (input) {
+                input.value = originalMessage;
+                input.focus();
+            }
+        });
+
+        log.appendChild(hint);
+        log.scrollTop = log.scrollHeight;
+    };
+
     const renderActiveAgent = () => {
         if (!log) return;
 
@@ -353,39 +390,128 @@ if (window.cyberLesson) {
         document.body.appendChild(modal);
     };
 
+    const streamChat = async (payload, bubble, agentAtSend) => {
+        const response = await fetch(window.cyberLesson.streamUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'text/event-stream'},
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok || !response.body) {
+            throw new Error('Streaming response failed.');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let reply = '';
+        let meta = {};
+        let interactionId = null;
+
+        const handleEvent = (rawEvent) => {
+            const dataLine = rawEvent.split('\n').find((line) => line.startsWith('data: '));
+            if (!dataLine) return;
+
+            const eventLine = rawEvent.split('\n').find((line) => line.startsWith('event: '));
+            const eventName = eventLine ? eventLine.slice(7).trim() : 'message';
+            const data = JSON.parse(dataLine.slice(6));
+
+            if (eventName === 'chunk') {
+                reply += data.text || '';
+                if (activeAgent === agentAtSend && bubble.isConnected) {
+                    bubble.innerHTML = formatBotMessage(reply);
+                    log.scrollTop = log.scrollHeight;
+                }
+            }
+
+            if (eventName === 'done') {
+                reply = data.message || reply;
+                meta = data.meta || {};
+                interactionId = data.interaction_id || null;
+            }
+
+            if (eventName === 'error') {
+                throw new Error(data.message || 'Streaming response failed.');
+            }
+        };
+
+        while (true) {
+            const {value, done} = await reader.read();
+            buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                const rawEvent = buffer.slice(0, boundary).trim();
+                buffer = buffer.slice(boundary + 2);
+                if (rawEvent) handleEvent(rawEvent);
+            }
+
+            if (done) break;
+        }
+
+        if (buffer.trim()) {
+            handleEvent(buffer.trim());
+        }
+
+        return {message: reply, meta, interactionId};
+    };
+
+    const sendJsonChat = async (payload) => {
+        const response = await fetch(window.cyberLesson.chatUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        return response.json();
+    };
+
     const sendMessage = async (message) => {
         const agentAtSend = activeAgent;
         const agentHistory = histories[agentAtSend] || [];
         lastUserLanguage = detectLanguage(message);
         quickReplies?.classList.add('hidden');
         addMessage(message, true);
-        const thinkingBubble = addMessage('Thinking...');
+        const thinkingBubble = addMessage(lastUserLanguage === 'ar' ? 'جاري التفكير...' : 'Thinking...');
 
         let reply = lastUserLanguage === 'ar'
             ? 'تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مرة أخرى بعد لحظات.'
             : 'The AI service is currently unavailable. Please try again in a moment.';
+        let meta = {};
+        let streamed = false;
+
+        const payload = {
+            message,
+            history: agentHistory,
+            lesson_id: window.cyberLesson.lessonId,
+            agent_type: agentAtSend,
+            platform_version: window.cyberLesson.version,
+        };
 
         try {
-            const response = await fetch(window.cyberLesson.chatUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json'},
-                body: JSON.stringify({
-                    message,
-                    history: agentHistory,
-                    lesson_id: window.cyberLesson.lessonId,
-                    agent_type: agentAtSend,
-                    platform_version: window.cyberLesson.version,
-                }),
-            });
-            const data = await response.json();
+            const data = window.cyberLesson.streamUrl
+                ? await streamChat(payload, thinkingBubble, agentAtSend)
+                : await sendJsonChat(payload);
             reply = data.message || reply;
-        } catch {
-            reply = lastUserLanguage === 'ar'
-                ? 'تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مرة أخرى بعد لحظات.'
-                : 'The AI service is currently unavailable. Please try again in a moment.';
+            meta = data.meta || {};
+            streamed = Boolean(window.cyberLesson.streamUrl);
+        } catch (streamError) {
+            try {
+                const data = await sendJsonChat(payload);
+                reply = data.message || reply;
+                meta = data.meta || {};
+            } catch {
+                reply = lastUserLanguage === 'ar'
+                    ? 'تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مرة أخرى بعد لحظات.'
+                    : 'The AI service is currently unavailable. Please try again in a moment.';
+            }
         }
 
-        thinkingBubble.remove();
+        if (streamed && activeAgent === agentAtSend && thinkingBubble.isConnected) {
+            thinkingBubble.innerHTML = formatBotMessage(reply);
+        } else {
+            thinkingBubble.remove();
+        }
+
         histories[agentAtSend] = [
             ...agentHistory,
             {role: 'user', content: message},
@@ -393,8 +519,11 @@ if (window.cyberLesson) {
         ].slice(-20);
 
         if (activeAgent === agentAtSend) {
-            addMessage(reply);
+            if (!streamed) {
+                addMessage(reply);
+            }
             renderQuickReplies();
+            showAgentRedirectHint(meta, message);
         }
 
         if (activeAgent === agentAtSend && shouldShowLevelPicker(reply)) {

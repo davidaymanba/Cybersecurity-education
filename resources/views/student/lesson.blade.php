@@ -96,6 +96,7 @@ window.cyberLesson = {
     version: @json($version),
     agent: @json($version === 'single' ? 'single_tutor' : 'navigation'),
     chatUrl: @json(route('api.ai.chat')),
+    streamUrl: @json(route('api.ai.chat.stream')),
     userName: @json(auth()->user()?->name),
     userLevel: @json(auth()->user()?->learning_level),
 };

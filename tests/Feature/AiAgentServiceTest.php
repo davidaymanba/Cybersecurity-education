@@ -88,10 +88,10 @@ class AiAgentServiceTest extends TestCase
             'single',
         );
 
-        $this->assertSame('OpenAI fallback answer', $response['message']);
+        $this->assertSame("David,\n\nOpenAI fallback answer", $response['message']);
         $this->assertDatabaseHas('ai_interactions', [
             'user_id' => $user->id,
-            'response' => 'OpenAI fallback answer',
+            'response' => "David,\n\nOpenAI fallback answer",
             'tokens_used' => 42,
         ]);
 
@@ -169,6 +169,39 @@ class AiAgentServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_arabic_saudi_greetings_use_name_without_calling_provider(): void
+    {
+        config([
+            'services.groq.api_key' => 'groq-test-key',
+            'services.openai.api_key' => 'openai-test-key',
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create(['name' => 'David']);
+        RateLimiter::clear("ai:{$user->id}");
+
+        $singleResponse = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'هاي',
+            'single_tutor',
+            'single',
+        );
+
+        $multiResponse = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'هلا',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertStringContainsString('مرحباً David!', $singleResponse['message']);
+        $this->assertStringContainsString('مرحباً David!', $multiResponse['message']);
+        Http::assertNothingSent();
+    }
+
     public function test_multi_guide_plan_request_asks_for_level_before_provider_call(): void
     {
         config([
@@ -227,7 +260,7 @@ class AiAgentServiceTest extends TestCase
             'multi',
         );
 
-        $this->assertSame('Personalized plan', $response['message']);
+        $this->assertSame("Dana,\n\nPersonalized plan", $response['message']);
         Http::assertSent(function ($request) {
             $messages = $request->data()['messages'];
             $systemText = collect($messages)
@@ -236,8 +269,116 @@ class AiAgentServiceTest extends TestCase
                 ->implode("\n");
 
             return str_contains($systemText, 'Name: Dana')
-                && str_contains($systemText, 'Current level: Beginner');
+                && str_contains($systemText, 'Current level: Beginner')
+                && str_contains($systemText, 'Guide Agent Scope');
         });
+    }
+
+    public function test_arabic_saudi_plan_variant_is_understood_by_guide_agent(): void
+    {
+        config([
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.groq.model' => 'groq-test-model',
+            'services.openai.api_key' => null,
+        ]);
+
+        Http::fake([
+            'api.groq.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => 'هذه خطة مناسبة لمستواك.']],
+                ],
+                'usage' => ['total_tokens' => 20],
+            ]),
+        ]);
+
+        $user = User::factory()->create([
+            'name' => 'فهد',
+            'learning_level' => 'Beginner',
+        ]);
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'اديني خطه',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertSame("فهد،\n\nهذه خطة مناسبة لمستواك.", $response['message']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.groq.com'));
+    }
+
+    public function test_arabic_links_request_returns_arabic_resources_without_provider_call(): void
+    {
+        config([
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.openai.api_key' => null,
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'ابغى لينكات اتعلم منها',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertStringContainsString('روابط', $response['message']);
+        $this->assertStringContainsString('https://owasp.org/www-project-top-ten/', $response['message']);
+        $this->assertStringContainsString('خلّنا', $response['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_arabic_guide_redirect_for_concepts_does_not_mix_english_scope_text(): void
+    {
+        config([
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.openai.api_key' => null,
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'وش يعني MFA؟',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertStringContainsString('تبويب Tutor', $response['message']);
+        $this->assertStringNotContainsString('the matching tab', $response['message']);
+        $this->assertStringNotContainsString('plans, roadmaps', $response['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_single_agent_arabic_concept_fallback_stays_arabic(): void
+    {
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'وش يعني MFA؟',
+            'single_tutor',
+            'single',
+        );
+
+        $this->assertStringContainsString('شرح آمن', $response['message']);
+        $this->assertStringNotContainsString('Here is a study-safe explanation', $response['message']);
+        Http::assertNothingSent();
     }
 
     public function test_agent_quiz_question_and_answer_are_graded_in_chat(): void
@@ -375,6 +516,30 @@ class AiAgentServiceTest extends TestCase
 
         $this->assertStringContainsString('Guide agent', $response['message']);
         $this->assertStringContainsString('Tutor', $response['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_streaming_chat_endpoint_returns_chunks_and_redirect_metadata(): void
+    {
+        Http::fake();
+
+        $user = User::factory()->create(['name' => 'David']);
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = $this->actingAs($user)->post(route('api.ai.chat.stream'), [
+            'message' => 'Explain DNS in simple terms.',
+            'agent_type' => 'navigation',
+            'platform_version' => 'multi',
+        ]);
+
+        $response->assertOk();
+
+        $stream = $response->streamedContent();
+
+        $this->assertStringContainsString('event: chunk', $stream);
+        $this->assertStringContainsString('David,', $stream);
+        $this->assertStringContainsString('"redirect":true', $stream);
+        $this->assertStringContainsString('"target_agent":"explanation"', $stream);
         Http::assertNothingSent();
     }
 
