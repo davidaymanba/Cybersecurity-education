@@ -59,10 +59,17 @@
         </div>
         <div id="chat-log" class="h-80 space-y-3 overflow-y-auto rounded-lg bg-slate-950/70 p-3 text-sm">
             <div class="rounded-lg bg-cyan-400/10 p-3 text-cyan-50">
-                Hello!<br>
-                I am <strong>Cyber Mentor</strong>, your specialized cybersecurity study assistant.<br><br>
-                I can help you build a personalized study plan, explain security concepts, and suggest practical exercises.<br>
-                Tell me: what is your current experience level, and what is your cybersecurity goal?
+                @if($version === 'single')
+                    Hello!<br>
+                    I am <strong>Cyber Mentor</strong>, your specialized cybersecurity study assistant.<br><br>
+                    I can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.<br>
+                    Tell me what you want to work on.
+                @else
+                    Hello!<br>
+                    <strong>Guide</strong> is active.<br><br>
+                    I only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.<br>
+                    Tell me your level or ask for a plan.
+                @endif
             </div>
         </div>
         <div id="quick-replies" class="mt-3 grid grid-cols-2 gap-2">

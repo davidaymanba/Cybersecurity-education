@@ -6,7 +6,54 @@ if (window.cyberLesson) {
     const input = document.querySelector('#chat-message');
     const quickReplies = document.querySelector('#quick-replies');
     let activeAgent = window.cyberLesson.agent;
-    let history = [];
+    const agentProfiles = {
+        single_tutor: {
+            welcome: 'Hello!\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.\n\nI can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.\nTell me what you want to work on.',
+            placeholder: 'Ask Cyber Mentor...',
+            quickReplies: [
+                {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
+                {label: 'Explain topic', en: 'Explain a cybersecurity topic in simple terms.', ar: 'اشرح لي موضوعاً في الأمن السيبراني بطريقة بسيطة.'},
+                {label: 'Give resources', en: 'Share useful cybersecurity learning resources with links.', ar: 'اعطني مصادر مفيدة لتعلم الأمن السيبراني مع روابط.'},
+                {label: 'Quiz me', en: 'Quiz me with safe beginner cybersecurity questions.', ar: 'اختبرني بأسئلة آمنة للمبتدئين في الأمن السيبراني.'},
+            ],
+        },
+        navigation: {
+            welcome: 'Hello!\n**Guide** is active.\n\nI only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.\nTell me your level or ask for a plan.',
+            placeholder: 'Ask for a plan, roadmap, or next lesson...',
+            quickReplies: [
+                {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
+                {label: 'Pick next lesson', en: 'What should I learn next in this course?', ar: 'ما الدرس التالي الذي يجب أن أتعلمه في هذا المسار؟'},
+                {label: 'Weekly schedule', en: 'Build me a weekly cybersecurity study schedule.', ar: 'ابنِ لي جدولاً أسبوعياً لتعلم الأمن السيبراني.'},
+                {label: 'Beginner roadmap', en: 'Create a beginner cybersecurity roadmap.', ar: 'اعمل لي خارطة طريق للمبتدئين في الأمن السيبراني.'},
+            ],
+        },
+        explanation: {
+            welcome: 'Hello!\n**Tutor** is active.\n\nI only explain cybersecurity concepts, definitions, comparisons, and safe defensive examples.\nAsk me about a concept from the lesson.',
+            placeholder: 'Ask about a cybersecurity concept...',
+            quickReplies: [
+                {label: 'Explain topic', en: 'Explain this lesson topic in simple terms.', ar: 'اشرح موضوع هذا الدرس بطريقة بسيطة.'},
+                {label: 'Give example', en: 'Give me a safe defensive example for this concept.', ar: 'اعطني مثالاً دفاعياً آمناً لهذا المفهوم.'},
+                {label: 'Compare concepts', en: 'Compare two cybersecurity concepts for me.', ar: 'قارن لي بين مفهومين في الأمن السيبراني.'},
+                {label: 'Check understanding', en: 'Check my understanding of this concept.', ar: 'اختبر فهمي لهذا المفهوم.'},
+            ],
+        },
+        video: {
+            welcome: 'Hello!\n**Video** is active.\n\nI only recommend approved videos embedded in this lesson.\nAsk what to watch or what to focus on while watching.',
+            placeholder: 'Ask for approved lesson videos...',
+            quickReplies: [
+                {label: 'Recommend videos', en: 'Recommend the approved videos for this lesson.', ar: 'رشح لي الفيديوهات المعتمدة لهذا الدرس.'},
+                {label: 'What to watch', en: 'Which approved video should I watch first?', ar: 'أي فيديو معتمد يجب أن أشاهده أولاً؟'},
+                {label: 'Focus notes', en: 'What should I focus on while watching the lesson video?', ar: 'على ماذا أركز أثناء مشاهدة فيديو الدرس؟'},
+                {label: 'After video', en: 'What should I do after watching the approved video?', ar: 'ماذا أفعل بعد مشاهدة الفيديو المعتمد؟'},
+            ],
+        },
+    };
+    const histories = {
+        single_tutor: [],
+        navigation: [],
+        explanation: [],
+        video: [],
+    };
     let lastUserLanguage = 'en';
 
     const detectLanguage = (message) => /[\u0600-\u06FF]/.test(message) ? 'ar' : 'en';
@@ -158,13 +205,39 @@ if (window.cyberLesson) {
         return html.join('');
     };
 
+    const currentProfile = () => agentProfiles[activeAgent] || agentProfiles.single_tutor;
+
+    const setTabStyles = () => {
+        document.querySelectorAll('.agent-tab').forEach((item) => {
+            item.className = item.dataset.agent === activeAgent
+                ? 'agent-tab rounded-lg bg-cyan-400 px-2 py-2 text-xs font-semibold text-slate-950'
+                : 'agent-tab rounded-lg bg-slate-950/70 px-2 py-2 text-xs';
+        });
+    };
+
+    const renderQuickReplies = () => {
+        if (!quickReplies) return;
+
+        quickReplies.innerHTML = '';
+        currentProfile().quickReplies.forEach((reply) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300';
+            button.textContent = reply.label;
+            button.addEventListener('click', () => {
+                sendMessage(lastUserLanguage === 'ar' ? reply.ar : reply.en);
+            });
+            quickReplies.appendChild(button);
+        });
+
+        quickReplies.classList.remove('hidden');
+    };
+
     document.querySelectorAll('.agent-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
             activeAgent = tab.dataset.agent;
-            document.querySelectorAll('.agent-tab').forEach((item) => {
-                item.className = 'agent-tab rounded-lg bg-slate-950/70 px-2 py-2 text-xs';
-            });
-            tab.className = 'agent-tab rounded-lg bg-cyan-400 px-2 py-2 text-xs font-semibold text-slate-950';
+            setTabStyles();
+            renderActiveAgent();
         });
     });
 
@@ -187,6 +260,22 @@ if (window.cyberLesson) {
         }
         log.appendChild(bubble);
         log.scrollTop = log.scrollHeight;
+
+        return bubble;
+    };
+
+    const renderActiveAgent = () => {
+        if (!log) return;
+
+        log.innerHTML = '';
+        if (input) {
+            input.placeholder = currentProfile().placeholder;
+        }
+        addMessage(currentProfile().welcome);
+        histories[activeAgent].forEach((item) => {
+            addMessage(item.content, item.role === 'user');
+        });
+        renderQuickReplies();
     };
 
     const shouldShowLevelPicker = (message) => {
@@ -261,45 +350,57 @@ if (window.cyberLesson) {
     };
 
     const sendMessage = async (message) => {
+        const agentAtSend = activeAgent;
+        const agentHistory = histories[agentAtSend] || [];
         lastUserLanguage = detectLanguage(message);
         quickReplies?.classList.add('hidden');
         addMessage(message, true);
-        addMessage('Thinking...');
+        const thinkingBubble = addMessage('Thinking...');
 
-        const response = await fetch(window.cyberLesson.chatUrl, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json'},
-            body: JSON.stringify({
-                message,
-                history,
-                lesson_id: window.cyberLesson.lessonId,
-                agent_type: activeAgent,
-                platform_version: window.cyberLesson.version,
-            }),
-        });
-        const data = await response.json();
-        log.lastElementChild.remove();
-        const reply = data.message || 'The AI service is currently unavailable.';
-        addMessage(reply);
-        history = [
-            ...history,
+        let reply = lastUserLanguage === 'ar'
+            ? 'تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مرة أخرى بعد لحظات.'
+            : 'The AI service is currently unavailable. Please try again in a moment.';
+
+        try {
+            const response = await fetch(window.cyberLesson.chatUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, Accept: 'application/json'},
+                body: JSON.stringify({
+                    message,
+                    history: agentHistory,
+                    lesson_id: window.cyberLesson.lessonId,
+                    agent_type: agentAtSend,
+                    platform_version: window.cyberLesson.version,
+                }),
+            });
+            const data = await response.json();
+            reply = data.message || reply;
+        } catch {
+            reply = lastUserLanguage === 'ar'
+                ? 'تعذر الاتصال بخدمة الذكاء الاصطناعي حالياً. حاول مرة أخرى بعد لحظات.'
+                : 'The AI service is currently unavailable. Please try again in a moment.';
+        }
+
+        thinkingBubble.remove();
+        histories[agentAtSend] = [
+            ...agentHistory,
             {role: 'user', content: message},
             {role: 'assistant', content: reply},
         ].slice(-20);
 
-        if (shouldShowLevelPicker(reply)) {
+        if (activeAgent === agentAtSend) {
+            addMessage(reply);
+            renderQuickReplies();
+        }
+
+        if (activeAgent === agentAtSend && shouldShowLevelPicker(reply)) {
             showLevelPicker();
         }
     };
 
     window.addEventListener('load', () => {
-        if (!log || log.children.length > 0) return;
-
-        addMessage(
-            'Hello!\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.\n\n' +
-            'I can help you build a personalized study plan, explain security concepts, and suggest practical exercises.\n' +
-            'Tell me: what is your current experience level, and what is your cybersecurity goal?'
-        );
+        setTabStyles();
+        renderActiveAgent();
     });
 
     form?.addEventListener('submit', async (event) => {
@@ -310,12 +411,8 @@ if (window.cyberLesson) {
         sendMessage(message);
     });
 
-    quickReplies?.querySelectorAll('.quick-reply').forEach((button) => {
-        button.addEventListener('click', () => {
-            const message = lastUserLanguage === 'ar' ? button.dataset.messageAr : button.dataset.messageEn;
-            sendMessage(message);
-        });
-    });
+    setTabStyles();
+    renderActiveAgent();
 }
 
 if (window.quizSeconds) {
