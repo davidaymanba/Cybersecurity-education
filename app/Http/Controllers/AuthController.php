@@ -43,6 +43,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'unique:users,email'],
+            'learning_level' => ['required', 'in:Beginner,Intermediate,Expert'],
             'password' => ['required', 'confirmed', 'min:8'],
         ]);
 
@@ -50,6 +51,7 @@ class AuthController extends Controller
             'role_id' => Role::firstOrCreate(['name' => 'student'], ['label' => 'Student'])->id,
             'name' => $data['name'],
             'email' => $data['email'],
+            'learning_level' => $data['learning_level'],
             'password' => $data['password'],
         ]);
 

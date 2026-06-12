@@ -37,7 +37,7 @@ class AiAgentServiceTest extends TestCase
 
         Http::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['name' => 'David']);
         RateLimiter::clear("ai:{$user->id}");
 
         $response = app(AiAgentService::class)->respond(
@@ -77,7 +77,7 @@ class AiAgentServiceTest extends TestCase
             ]),
         ]);
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['name' => 'David']);
         RateLimiter::clear("ai:{$user->id}");
 
         $response = app(AiAgentService::class)->respond(
@@ -153,7 +153,7 @@ class AiAgentServiceTest extends TestCase
 
         Http::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['name' => 'David']);
         RateLimiter::clear("ai:{$user->id}");
 
         $response = app(AiAgentService::class)->respond(
@@ -164,7 +164,7 @@ class AiAgentServiceTest extends TestCase
             'single',
         );
 
-        $this->assertStringContainsString('Hello!', $response['message']);
+        $this->assertStringContainsString('Hello David!', $response['message']);
         $this->assertStringNotContainsString('مرحباً', $response['message']);
         Http::assertNothingSent();
     }
@@ -178,7 +178,7 @@ class AiAgentServiceTest extends TestCase
 
         Http::fake();
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['learning_level' => null]);
         RateLimiter::clear("ai:{$user->id}");
 
         $response = app(AiAgentService::class)->respond(
@@ -194,6 +194,50 @@ class AiAgentServiceTest extends TestCase
         $this->assertStringContainsString('Intermediate', $response['message']);
         $this->assertStringContainsString('Expert', $response['message']);
         Http::assertNothingSent();
+    }
+
+    public function test_saved_student_name_and_level_are_sent_to_the_agent_context(): void
+    {
+        config([
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.groq.model' => 'groq-test-model',
+            'services.openai.api_key' => null,
+        ]);
+
+        Http::fake([
+            'api.groq.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => 'Personalized plan']],
+                ],
+                'usage' => ['total_tokens' => 18],
+            ]),
+        ]);
+
+        $user = User::factory()->create([
+            'name' => 'Dana',
+            'learning_level' => 'Beginner',
+        ]);
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'I need a cybersecurity learning plan.',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertSame('Personalized plan', $response['message']);
+        Http::assertSent(function ($request) {
+            $messages = $request->data()['messages'];
+            $systemText = collect($messages)
+                ->where('role', 'system')
+                ->pluck('content')
+                ->implode("\n");
+
+            return str_contains($systemText, 'Name: Dana')
+                && str_contains($systemText, 'Current level: Beginner');
+        });
     }
 
     public function test_agent_quiz_question_and_answer_are_graded_in_chat(): void

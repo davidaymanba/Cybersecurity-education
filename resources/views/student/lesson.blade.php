@@ -60,15 +60,21 @@
         <div id="chat-log" class="h-80 space-y-3 overflow-y-auto rounded-lg bg-slate-950/70 p-3 text-sm">
             <div class="rounded-lg bg-cyan-400/10 p-3 text-cyan-50">
                 @if($version === 'single')
-                    Hello!<br>
+                    Hello {{ auth()->user()?->name }}!<br>
                     I am <strong>Cyber Mentor</strong>, your specialized cybersecurity study assistant.<br><br>
+                    @if(auth()->user()?->learning_level)
+                        Your saved level: <strong>{{ auth()->user()->learning_level }}</strong>.<br><br>
+                    @endif
                     I can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.<br>
                     Tell me what you want to work on.
                 @else
-                    Hello!<br>
+                    Hello {{ auth()->user()?->name }}!<br>
                     <strong>Guide</strong> is active.<br><br>
+                    @if(auth()->user()?->learning_level)
+                        Your saved level: <strong>{{ auth()->user()->learning_level }}</strong>.<br><br>
+                    @endif
                     I only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.<br>
-                    Tell me your level or ask for a plan.
+                    Tell me your goal or ask for a plan.
                 @endif
             </div>
         </div>
@@ -85,6 +91,13 @@
     </aside>
 </div>
 <script>
-window.cyberLesson = {lessonId: {{ $lesson->id }}, version: @json($version), agent: @json($version === 'single' ? 'single_tutor' : 'navigation'), chatUrl: @json(route('api.ai.chat'))};
+window.cyberLesson = {
+    lessonId: {{ $lesson->id }},
+    version: @json($version),
+    agent: @json($version === 'single' ? 'single_tutor' : 'navigation'),
+    chatUrl: @json(route('api.ai.chat')),
+    userName: @json(auth()->user()?->name),
+    userLevel: @json(auth()->user()?->learning_level),
+};
 </script>
 @endsection

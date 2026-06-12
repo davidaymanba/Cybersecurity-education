@@ -6,9 +6,13 @@ if (window.cyberLesson) {
     const input = document.querySelector('#chat-message');
     const quickReplies = document.querySelector('#quick-replies');
     let activeAgent = window.cyberLesson.agent;
+    const studentName = String(window.cyberLesson.userName || '').trim();
+    const studentLevel = String(window.cyberLesson.userLevel || '').trim();
+    const helloLine = studentName ? `Hello ${studentName}!` : 'Hello!';
+    const levelLine = studentLevel ? `\nYour saved level: **${studentLevel}**.` : '';
     const agentProfiles = {
         single_tutor: {
-            welcome: 'Hello!\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.\n\nI can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.\nTell me what you want to work on.',
+            welcome: `${helloLine}\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.${levelLine}\n\nI can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.\nTell me what you want to work on.`,
             placeholder: 'Ask Cyber Mentor...',
             quickReplies: [
                 {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
@@ -18,7 +22,7 @@ if (window.cyberLesson) {
             ],
         },
         navigation: {
-            welcome: 'Hello!\n**Guide** is active.\n\nI only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.\nTell me your level or ask for a plan.',
+            welcome: `${helloLine}\n**Guide** is active.${levelLine}\n\nI only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.\nTell me your goal or ask for a plan.`,
             placeholder: 'Ask for a plan, roadmap, or next lesson...',
             quickReplies: [
                 {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
@@ -28,7 +32,7 @@ if (window.cyberLesson) {
             ],
         },
         explanation: {
-            welcome: 'Hello!\n**Tutor** is active.\n\nI only explain cybersecurity concepts, definitions, comparisons, and safe defensive examples.\nAsk me about a concept from the lesson.',
+            welcome: `${helloLine}\n**Tutor** is active.${levelLine}\n\nI only explain cybersecurity concepts, definitions, comparisons, and safe defensive examples.\nAsk me about a concept from the lesson.`,
             placeholder: 'Ask about a cybersecurity concept...',
             quickReplies: [
                 {label: 'Explain topic', en: 'Explain this lesson topic in simple terms.', ar: 'اشرح موضوع هذا الدرس بطريقة بسيطة.'},
@@ -38,7 +42,7 @@ if (window.cyberLesson) {
             ],
         },
         video: {
-            welcome: 'Hello!\n**Video** is active.\n\nI only recommend approved videos embedded in this lesson.\nAsk what to watch or what to focus on while watching.',
+            welcome: `${helloLine}\n**Video** is active.${levelLine}\n\nI only recommend approved videos embedded in this lesson.\nAsk what to watch or what to focus on while watching.`,
             placeholder: 'Ask for approved lesson videos...',
             quickReplies: [
                 {label: 'Recommend videos', en: 'Recommend the approved videos for this lesson.', ar: 'رشح لي الفيديوهات المعتمدة لهذا الدرس.'},

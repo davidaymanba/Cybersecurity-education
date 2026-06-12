@@ -146,7 +146,7 @@ PROMPT,
     {
         $agent = self::AGENTS[$agentType] ?? self::AGENTS['single_tutor'];
         $started = microtime(true);
-        $content = $this->fallbackResponse($message, $agentType, $lesson);
+        $content = $this->fallbackResponse($message, $agentType, $lesson, $user);
         $tokens = 0;
         $unsafe = $this->isUnsafeRequest($message);
 
@@ -154,13 +154,13 @@ PROMPT,
             $content = $this->rateLimitResponse($message);
         } elseif ($unsafe) {
             $content = $this->safetyResponse($message);
-        } elseif ($deterministicResponse = $this->deterministicResponse($message, $agentType, $history, $lesson)) {
+        } elseif ($deterministicResponse = $this->deterministicResponse($message, $agentType, $history, $lesson, $user)) {
             $content = $deterministicResponse;
         } elseif ($scopeResponse = $this->scopeResponse($message, $agentType)) {
             $content = $scopeResponse;
         } else {
             $result = $this->resolveAiResponse(
-                $this->messages($agent['prompt'], $lesson, $history, $message),
+                $this->messages($user, $agent['prompt'], $lesson, $history, $message),
                 $content,
                 $version,
             );
@@ -364,18 +364,18 @@ If it is urgent, make the next message one focused question and I will help as s
         return preg_match('/^(h+i+|hello+|hey+|salam|السلام عليكم|اهلا|أهلا|أهلاً|مرحبا|مرحباً)$/u', $text) === 1;
     }
 
-    private function deterministicResponse(string $message, string $agentType, array $history, ?Lesson $lesson): ?string
+    private function deterministicResponse(string $message, string $agentType, array $history, ?Lesson $lesson, User $user): ?string
     {
         if ($this->isGreetingOnly($message)) {
-            return $this->fallbackResponse($message, $agentType, $lesson);
+            return $this->fallbackResponse($message, $agentType, $lesson, $user);
         }
 
         if (
             in_array($agentType, ['single_tutor', 'navigation'], true)
             && $this->isStudyPlanRequest($message)
-            && ! $this->hasStudyPlanLevel($message)
+            && ! $this->studentLevel($user, $history, $message)
         ) {
-            return $this->fallbackResponse($message, $agentType, $lesson);
+            return $this->fallbackResponse($message, $agentType, $lesson, $user);
         }
 
         if (in_array($agentType, ['single_tutor', 'explanation'], true)) {
@@ -410,25 +410,6 @@ If it is urgent, make the next message one focused question and I will help as s
             'جدول',
             'خارطة طريق',
         ])->contains(fn ($term) => str_contains($text, $term));
-    }
-
-    private function hasStudyPlanLevel(string $message): bool
-    {
-        $text = trim(Str::lower($message));
-
-        return preg_match('/\b(beginner|intermediate|expert|advanced)\b/u', $text) === 1
-            || $this->containsAny($text, [
-                'مبتدئ',
-                'مبتدئة',
-                'جديد',
-                'جديدة',
-                'متوسط',
-                'متوسطة',
-                'خبير',
-                'خبيرة',
-                'متقدم',
-                'متقدمة',
-            ]);
     }
 
     private function isGuideRequest(string $message): bool
@@ -873,11 +854,12 @@ If it is urgent, make the next message one focused question and I will help as s
         ];
     }
 
-    private function messages(string $prompt, ?Lesson $lesson, array $history, string $message): array
+    private function messages(User $user, string $prompt, ?Lesson $lesson, array $history, string $message): array
     {
         $messages = [
             ['role' => 'system', 'content' => self::CORE_SYSTEM_POLICY],
             ['role' => 'system', 'content' => self::BASE_AGENT_BEHAVIOR],
+            ['role' => 'system', 'content' => $this->studentContext($user, $history, $message)],
             ['role' => 'system', 'content' => $prompt],
             ['role' => 'system', 'content' => $this->lessonContext($lesson)],
         ];
@@ -894,6 +876,93 @@ If it is urgent, make the next message one focused question and I will help as s
         $messages[] = ['role' => 'user', 'content' => $message];
 
         return $messages;
+    }
+
+    private function studentContext(User $user, array $history, string $message): string
+    {
+        $name = trim($user->name) !== '' ? $user->name : 'Student';
+        $level = $this->studentLevel($user, $history, $message);
+        $recent = $this->recentInteractionContext($user);
+
+        return "Student profile:\n"
+            ."- Name: {$name}\n"
+            .'- Current level: '.($level ?? 'unknown; ask only when needed for a plan')."\n"
+            ."- Personalization: address the student by name naturally, especially in greetings, plans, and progress follow-ups. Do not overuse the name in every sentence.\n"
+            ."- Continuity: use the current chat history and recent interaction summary to avoid repeating questions and to maintain context.\n"
+            ."Recent interaction summary:\n{$recent}";
+    }
+
+    private function studentLevel(User $user, array $history, string $message): ?string
+    {
+        $storedLevel = $this->detectLevel((string) $user->learning_level);
+
+        if ($storedLevel) {
+            return $storedLevel;
+        }
+
+        $sources = [$message];
+
+        foreach (array_reverse($history) as $item) {
+            $sources[] = (string) ($item['content'] ?? '');
+        }
+
+        $recentPrompts = $user->aiInteractions()
+            ->latest()
+            ->take(8)
+            ->pluck('prompt')
+            ->all();
+
+        $sources = array_merge($sources, $recentPrompts);
+
+        foreach ($sources as $source) {
+            $level = $this->detectLevel($source);
+
+            if ($level) {
+                return $level;
+            }
+        }
+
+        return null;
+    }
+
+    private function detectLevel(string $text): ?string
+    {
+        $normalized = Str::lower($text);
+
+        if (preg_match('/\b(beginner|newbie|starter)\b/u', $normalized) === 1 || $this->containsAny($normalized, ['مبتدئ', 'مبتدئة', 'جديد', 'جديدة'])) {
+            return 'Beginner';
+        }
+
+        if (preg_match('/\b(intermediate)\b/u', $normalized) === 1 || $this->containsAny($normalized, ['متوسط', 'متوسطة'])) {
+            return 'Intermediate';
+        }
+
+        if (preg_match('/\b(expert|advanced)\b/u', $normalized) === 1 || $this->containsAny($normalized, ['خبير', 'خبيرة', 'متقدم', 'متقدمة'])) {
+            return 'Expert';
+        }
+
+        return null;
+    }
+
+    private function recentInteractionContext(User $user): string
+    {
+        $interactions = $user->aiInteractions()
+            ->latest()
+            ->take(5)
+            ->get(['agent_type', 'platform_version', 'prompt', 'response']);
+
+        if ($interactions->isEmpty()) {
+            return '- No previous AI interactions found.';
+        }
+
+        return $interactions
+            ->map(function ($interaction) {
+                $prompt = Str::limit(trim((string) $interaction->prompt), 140);
+                $response = Str::limit(trim(strip_tags((string) $interaction->response)), 180);
+
+                return "- {$interaction->platform_version}/{$interaction->agent_type}: student asked \"{$prompt}\"; assistant replied \"{$response}\".";
+            })
+            ->implode("\n");
     }
 
     private function lessonContext(?Lesson $lesson): string
@@ -1075,10 +1144,10 @@ If it is urgent, make the next message one focused question and I will help as s
         ]);
     }
 
-    private function fallbackResponse(string $message, string $agentType, ?Lesson $lesson): string
+    private function fallbackResponse(string $message, string $agentType, ?Lesson $lesson, ?User $user = null): string
     {
         if ($this->isGreetingOnly($message)) {
-            return $this->greetingResponse($message, $agentType);
+            return $this->greetingResponse($message, $agentType, $user);
         }
 
         if (in_array($agentType, ['single_tutor', 'navigation'], true) && $this->isStudyPlanRequest($message)) {
@@ -1110,23 +1179,25 @@ Which level are you?';
         };
     }
 
-    private function greetingResponse(string $message, string $agentType): string
+    private function greetingResponse(string $message, string $agentType, ?User $user): string
     {
         $arabic = $this->containsArabic($message);
+        $name = trim((string) $user?->name);
+        $displayName = $name !== '' ? $name : ($arabic ? 'صديقي' : 'there');
 
         return match ($agentType) {
             'navigation' => $arabic
-                ? "مرحباً! تبويب Guide مفعل.\n\nأساعدك في الخطط، المسارات، الجداول، واختيار الدرس التالي. هل تريد خطة أم توجيهاً للخطوة القادمة؟"
-                : "Hello! Guide is active.\n\nI can help with plans, roadmaps, schedules, and choosing the next lesson. Do you want a plan or guidance on the next step?",
+                ? "مرحباً {$displayName}! تبويب Guide مفعل.\n\nأساعدك في الخطط، المسارات، الجداول، واختيار الدرس التالي. هل تريد خطة أم توجيهاً للخطوة القادمة؟"
+                : "Hello {$displayName}! Guide is active.\n\nI can help with plans, roadmaps, schedules, and choosing the next lesson. Do you want a plan or guidance on the next step?",
             'explanation' => $arabic
-                ? "مرحباً! تبويب Tutor مفعل.\n\nأساعدك في شرح مفاهيم الأمن السيبراني وأمثلة دفاعية آمنة. ما المفهوم الذي تريد شرحه؟"
-                : "Hello! Tutor is active.\n\nI can explain cybersecurity concepts with safe defensive examples. What concept would you like to understand?",
+                ? "مرحباً {$displayName}! تبويب Tutor مفعل.\n\nأساعدك في شرح مفاهيم الأمن السيبراني وأمثلة دفاعية آمنة. ما المفهوم الذي تريد شرحه؟"
+                : "Hello {$displayName}! Tutor is active.\n\nI can explain cybersecurity concepts with safe defensive examples. What concept would you like to understand?",
             'video' => $arabic
-                ? "مرحباً! تبويب Video مفعل.\n\nأرشح فقط الفيديوهات المعتمدة داخل هذا الدرس. هل تريد معرفة أي فيديو تبدأ به؟"
-                : "Hello! Video is active.\n\nI only recommend approved videos embedded in this lesson. Would you like to know which one to watch first?",
+                ? "مرحباً {$displayName}! تبويب Video مفعل.\n\nأرشح فقط الفيديوهات المعتمدة داخل هذا الدرس. هل تريد معرفة أي فيديو تبدأ به؟"
+                : "Hello {$displayName}! Video is active.\n\nI only recommend approved videos embedded in this lesson. Would you like to know which one to watch first?",
             default => $arabic
-                ? "مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.\n\nكيف أقدر أساعدك اليوم؟ يمكنني شرح مفهوم، اقتراح مصادر، عمل اختبار قصير، أو بناء خطة إذا طلبت ذلك."
-                : "Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.\n\nHow can I help you today? I can explain a concept, suggest resources, quiz you, or build a plan if you ask for one.",
+                ? "مرحباً {$displayName}! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.\n\nكيف أقدر أساعدك اليوم؟ يمكنني شرح مفهوم، اقتراح مصادر، عمل اختبار قصير، أو بناء خطة إذا طلبت ذلك."
+                : "Hello {$displayName}! I am Cyber Mentor, your specialized cybersecurity study assistant.\n\nHow can I help you today? I can explain a concept, suggest resources, quiz you, or build a plan if you ask for one.",
         };
     }
 

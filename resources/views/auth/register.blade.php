@@ -7,6 +7,13 @@
         <h1 class="text-3xl font-semibold text-white">Create student account</h1>
         <label class="mt-6 block text-sm text-slate-300">Name<input name="name" value="{{ old('name') }}" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-3 text-white" required></label>
         <label class="mt-4 block text-sm text-slate-300">Email<input name="email" type="email" value="{{ old('email') }}" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-3 text-white" required></label>
+        <label class="mt-4 block text-sm text-slate-300">Current level
+            <select name="learning_level" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-3 text-white" required>
+                @foreach(['Beginner', 'Intermediate', 'Expert'] as $level)
+                    <option value="{{ $level }}" @selected(old('learning_level', 'Beginner') === $level)>{{ $level }}</option>
+                @endforeach
+            </select>
+        </label>
         <label class="mt-4 block text-sm text-slate-300">Password<input name="password" type="password" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-3 text-white" required></label>
         <label class="mt-4 block text-sm text-slate-300">Confirm password<input name="password_confirmation" type="password" class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-3 text-white" required></label>
         @if($errors->any())<p class="mt-3 text-sm text-red-300">{{ $errors->first() }}</p>@endif
