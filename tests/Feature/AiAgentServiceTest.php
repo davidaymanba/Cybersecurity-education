@@ -22,6 +22,8 @@ class AiAgentServiceTest extends TestCase
 
         config([
             'services.groq.api_key' => null,
+            'services.groq.single_api_key' => null,
+            'services.groq.multi_api_key' => null,
             'services.openai.api_key' => null,
         ]);
     }
@@ -96,6 +98,194 @@ class AiAgentServiceTest extends TestCase
         Http::assertSentCount(2);
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.groq.com'));
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.openai.com'));
+    }
+
+    public function test_uses_separate_groq_api_keys_for_single_and_multi_agent_modes(): void
+    {
+        config([
+            'services.groq.api_key' => null,
+            'services.groq.single_api_key' => 'single-test-key',
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.groq.model' => 'groq-test-model',
+            'services.openai.api_key' => null,
+        ]);
+
+        Http::fake([
+            'api.groq.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => 'Groq answer']],
+                ],
+                'usage' => ['total_tokens' => 12],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'Explain DNS security basics.',
+            'single_tutor',
+            'single',
+        );
+
+        app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'Explain DNS security basics.',
+            'explanation',
+            'multi',
+        );
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.groq.com')
+            && $request->hasHeader('Authorization', 'Bearer single-test-key'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.groq.com')
+            && $request->hasHeader('Authorization', 'Bearer multi-test-key'));
+    }
+
+    public function test_english_greeting_uses_english_without_calling_provider(): void
+    {
+        config([
+            'services.groq.api_key' => 'groq-test-key',
+            'services.openai.api_key' => 'openai-test-key',
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'hii',
+            'single_tutor',
+            'single',
+        );
+
+        $this->assertStringContainsString('Hello!', $response['message']);
+        $this->assertStringNotContainsString('مرحباً', $response['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_multi_guide_plan_request_asks_for_level_before_provider_call(): void
+    {
+        config([
+            'services.groq.multi_api_key' => 'multi-test-key',
+            'services.openai.api_key' => 'openai-test-key',
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $response = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'I need a cybersecurity learning plan.',
+            'navigation',
+            'multi',
+        );
+
+        $this->assertStringContainsString('Before I build your plan', $response['message']);
+        $this->assertStringContainsString('Beginner', $response['message']);
+        $this->assertStringContainsString('Intermediate', $response['message']);
+        $this->assertStringContainsString('Expert', $response['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_agent_quiz_question_and_answer_are_graded_in_chat(): void
+    {
+        config([
+            'services.groq.api_key' => 'groq-test-key',
+            'services.openai.api_key' => 'openai-test-key',
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $question = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'Quiz me',
+            'single_tutor',
+            'single',
+        );
+
+        $this->assertStringContainsString('Quick quiz', $question['message']);
+        $this->assertStringContainsString('A.', $question['message']);
+        $this->assertStringContainsString('B.', $question['message']);
+
+        $answer = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'B',
+            'single_tutor',
+            'single',
+            [
+                ['role' => 'user', 'content' => 'Quiz me'],
+                ['role' => 'assistant', 'content' => $question['message']],
+            ],
+        );
+
+        $this->assertStringContainsString('Correct', $answer['message']);
+        Http::assertNothingSent();
+    }
+
+    public function test_agent_quiz_yes_after_grading_returns_another_question(): void
+    {
+        config([
+            'services.groq.api_key' => 'groq-test-key',
+            'services.openai.api_key' => 'openai-test-key',
+        ]);
+
+        Http::fake();
+
+        $user = User::factory()->create();
+        RateLimiter::clear("ai:{$user->id}");
+
+        $firstQuestion = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'Quiz me',
+            'single_tutor',
+            'single',
+        );
+
+        $gradedAnswer = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'B',
+            'single_tutor',
+            'single',
+            [
+                ['role' => 'user', 'content' => 'Quiz me'],
+                ['role' => 'assistant', 'content' => $firstQuestion['message']],
+            ],
+        );
+
+        $nextQuestion = app(AiAgentService::class)->respond(
+            $user,
+            null,
+            'yes',
+            'single_tutor',
+            'single',
+            [
+                ['role' => 'user', 'content' => 'Quiz me'],
+                ['role' => 'assistant', 'content' => $firstQuestion['message']],
+                ['role' => 'user', 'content' => 'B'],
+                ['role' => 'assistant', 'content' => $gradedAnswer['message']],
+            ],
+        );
+
+        $this->assertStringContainsString('Quick quiz', $nextQuestion['message']);
+        $this->assertStringNotContainsString('Your question was: "yes"', $nextQuestion['message']);
+        $this->assertNotSame($firstQuestion['message'], $nextQuestion['message']);
+        Http::assertNothingSent();
     }
 
     public function test_safe_concept_question_about_attack_name_is_not_blocked(): void

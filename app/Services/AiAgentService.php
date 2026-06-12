@@ -46,6 +46,7 @@ You are "Cyber Mentor" - a friendly, professional, and encouraging Cybersecurity
 - Use a short intro only for the first assistant message, a greeting-only exchange, or after a long break. For follow-up questions, answer directly.
 - Be encouraging, calm, precise, and modern. Focus strictly on cybersecurity learning.
 - Stay inside your active agent tab scope. If the student asks for another tab's job, briefly redirect them to that tab instead of answering it.
+- For quizzes, ask one multiple-choice question at a time. When the student answers, say clearly whether it is correct or incorrect, give the correct answer, and add a short explanation.
 - End with a useful next step or short question when it naturally helps.
 
 ## Output Format
@@ -67,6 +68,7 @@ PROMPT;
 - Act as the combined Cyber Mentor experience for single-agent mode.
 - You may help with study plans, cybersecurity concepts, safe learning resources, approved lesson videos, and short defensive quizzes.
 - Ask about experience level and goals only when it helps the student's request, especially for study plans.
+- For quiz requests, ask one safe defensive multiple-choice question, then wait for the student's answer before asking another.
 
 ## Intent Handling
 - Treat short greetings and casual openers as greetings only. Examples: "hi", "hii", "hiii", "hello", "hey", "salam", "السلام عليكم", "اهلا", "أهلاً", "مرحبا".
@@ -122,6 +124,7 @@ PROMPT,
 - Do not build study plans, schedules, or roadmaps. If the student asks for a plan, tell them to switch to Guide.
 - Do not recommend videos. If the student asks for videos, tell them to switch to Video.
 - Keep examples defensive, legal, and aligned to the current lesson when possible.
+- You may run short concept quizzes. Ask one multiple-choice question at a time and grade the student's next answer.
 PROMPT,
         ],
         'video' => [
@@ -151,12 +154,15 @@ PROMPT,
             $content = $this->rateLimitResponse($message);
         } elseif ($unsafe) {
             $content = $this->safetyResponse($message);
+        } elseif ($deterministicResponse = $this->deterministicResponse($message, $agentType, $history, $lesson)) {
+            $content = $deterministicResponse;
         } elseif ($scopeResponse = $this->scopeResponse($message, $agentType)) {
             $content = $scopeResponse;
         } else {
             $result = $this->resolveAiResponse(
                 $this->messages($agent['prompt'], $lesson, $history, $message),
                 $content,
+                $version,
             );
 
             $content = $result['content'];
@@ -358,6 +364,37 @@ If it is urgent, make the next message one focused question and I will help as s
         return preg_match('/^(h+i+|hello+|hey+|salam|السلام عليكم|اهلا|أهلا|أهلاً|مرحبا|مرحباً)$/u', $text) === 1;
     }
 
+    private function deterministicResponse(string $message, string $agentType, array $history, ?Lesson $lesson): ?string
+    {
+        if ($this->isGreetingOnly($message)) {
+            return $this->fallbackResponse($message, $agentType, $lesson);
+        }
+
+        if (
+            in_array($agentType, ['single_tutor', 'navigation'], true)
+            && $this->isStudyPlanRequest($message)
+            && ! $this->hasStudyPlanLevel($message)
+        ) {
+            return $this->fallbackResponse($message, $agentType, $lesson);
+        }
+
+        if (in_array($agentType, ['single_tutor', 'explanation'], true)) {
+            if ($this->isAnotherQuizRequest($message, $history)) {
+                return $this->quizQuestionResponse($message, $lesson, $history);
+            }
+
+            if ($response = $this->quizEvaluationResponse($message, $history)) {
+                return $response;
+            }
+
+            if ($this->isQuizRequest($message)) {
+                return $this->quizQuestionResponse($message, $lesson, $history);
+            }
+        }
+
+        return null;
+    }
+
     private function isStudyPlanRequest(string $message): bool
     {
         $text = trim(Str::lower($message));
@@ -373,6 +410,25 @@ If it is urgent, make the next message one focused question and I will help as s
             'جدول',
             'خارطة طريق',
         ])->contains(fn ($term) => str_contains($text, $term));
+    }
+
+    private function hasStudyPlanLevel(string $message): bool
+    {
+        $text = trim(Str::lower($message));
+
+        return preg_match('/\b(beginner|intermediate|expert|advanced)\b/u', $text) === 1
+            || $this->containsAny($text, [
+                'مبتدئ',
+                'مبتدئة',
+                'جديد',
+                'جديدة',
+                'متوسط',
+                'متوسطة',
+                'خبير',
+                'خبيرة',
+                'متقدم',
+                'متقدمة',
+            ]);
     }
 
     private function isGuideRequest(string $message): bool
@@ -409,8 +465,47 @@ If it is urgent, make the next message one focused question and I will help as s
         ]);
     }
 
+    private function isAnotherQuizRequest(string $message, array $history): bool
+    {
+        $assistantMessage = $this->lastAssistantMessage($history);
+
+        if (! $assistantMessage) {
+            return false;
+        }
+
+        $offeredAnotherQuestion = str_contains($assistantMessage, 'Would you like another question?')
+            || str_contains($assistantMessage, 'هل تريد سؤالاً آخر؟');
+
+        if (! $offeredAnotherQuestion) {
+            return false;
+        }
+
+        $text = trim(Str::lower($message));
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return preg_match('/\b(yes|yeah|yep|sure|ok|okay|another|next)\b/u', $text) === 1
+            || $this->containsAny($text, [
+                'another question',
+                'next question',
+                'نعم',
+                'ايوه',
+                'أيوه',
+                'اه',
+                'تمام',
+                'سؤال تاني',
+                'سؤال ثاني',
+                'سؤال آخر',
+                'السؤال التالي',
+            ]);
+    }
+
     private function isConceptRequest(string $message): bool
     {
+        if ($this->isQuizRequest($message)) {
+            return true;
+        }
+
         $text = trim(Str::lower($message));
 
         return $this->containsAny($text, [
@@ -438,6 +533,23 @@ If it is urgent, make the next message one focused question and I will help as s
             'مثال',
             'الفرق بين',
             'اختبرني',
+        ]);
+    }
+
+    private function isQuizRequest(string $message): bool
+    {
+        $text = trim(Str::lower($message));
+
+        return $this->containsAny($text, [
+            'quiz me',
+            'quiz',
+            'test me',
+            'ask me a question',
+            'practice question',
+            'اختبرني',
+            'اختبار',
+            'اسألني سؤال',
+            'سؤال تدريب',
         ]);
     }
 
@@ -509,6 +621,258 @@ If it is urgent, make the next message one focused question and I will help as s
         return "I am the {$currentAgent} agent, so I only handle {$scope}.\n\nSwitch to {$targetAgent} for this request, or rephrase it as a {$currentAgent} task.";
     }
 
+    private function quizQuestionResponse(string $message, ?Lesson $lesson, array $history = []): string
+    {
+        $quiz = $this->quizForLesson($lesson, $history);
+        $useArabic = $this->containsArabic($message) || $this->containsArabic($this->lastAssistantMessage($history) ?? '');
+
+        if ($useArabic) {
+            return "**اختبار سريع**\n\n{$quiz['question_ar']}\n{$quiz['options_ar'][0]}\n{$quiz['options_ar'][1]}\n{$quiz['options_ar'][2]}\n{$quiz['options_ar'][3]}\n\nاكتب أ، ب، ج، أو د وسأخبرك هل إجابتك صحيحة أم لا.";
+        }
+
+        return "**Quick quiz**\n\n{$quiz['question_en']}\n{$quiz['options_en'][0]}\n{$quiz['options_en'][1]}\n{$quiz['options_en'][2]}\n{$quiz['options_en'][3]}\n\nReply with A, B, C, or D and I will tell you whether it is correct.";
+    }
+
+    private function quizEvaluationResponse(string $message, array $history): ?string
+    {
+        $quiz = $this->lastQuizFromHistory($history);
+
+        if (! $quiz) {
+            return null;
+        }
+
+        $answer = $this->normalizeQuizAnswer($message, $quiz);
+        $useArabic = $this->containsArabic($message) || $this->containsArabic($this->lastAssistantMessage($history) ?? '');
+
+        if (! $answer) {
+            return $useArabic
+                ? 'اكتب إجابتك بصيغة أ، ب، ج، أو د عشان أقدر أصححها لك.'
+                : 'Please answer with A, B, C, or D so I can grade it clearly.';
+        }
+
+        $isCorrect = $answer === $quiz['correct'];
+
+        if ($useArabic) {
+            if ($isCorrect) {
+                return "صحيح. الإجابة {$quiz['correct_ar']}.\n\n{$quiz['explanation_ar']}\n\nهل تريد سؤالاً آخر؟";
+            }
+
+            return "ليست صحيحة. الإجابة الصحيحة هي {$quiz['correct_ar']}.\n\n{$quiz['explanation_ar']}\n\nهل تريد سؤالاً آخر؟";
+        }
+
+        if ($isCorrect) {
+            return "Correct. The answer is {$quiz['correct']}.\n\n{$quiz['explanation_en']}\n\nWould you like another question?";
+        }
+
+        return "Not quite. The correct answer is {$quiz['correct']}.\n\n{$quiz['explanation_en']}\n\nWould you like another question?";
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function lastQuizFromHistory(array $history): ?array
+    {
+        foreach (array_reverse($history) as $item) {
+            if (($item['role'] ?? null) !== 'assistant') {
+                continue;
+            }
+
+            $content = trim((string) ($item['content'] ?? ''));
+
+            if ($content === '') {
+                continue;
+            }
+
+            foreach ($this->quizBank() as $quiz) {
+                if (
+                    str_contains($content, $quiz['question_en'])
+                    || str_contains($content, $quiz['question_ar'])
+                ) {
+                    return $quiz;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function lastAssistantMessage(array $history): ?string
+    {
+        foreach (array_reverse($history) as $item) {
+            if (($item['role'] ?? null) === 'assistant') {
+                $content = trim((string) ($item['content'] ?? ''));
+
+                if ($content !== '') {
+                    return $content;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $quiz
+     */
+    private function normalizeQuizAnswer(string $message, array $quiz): ?string
+    {
+        $text = trim(Str::lower($message));
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        $letterMap = [
+            'a' => 'A',
+            'b' => 'B',
+            'c' => 'C',
+            'd' => 'D',
+            'أ' => 'A',
+            'ا' => 'A',
+            'ب' => 'B',
+            'ج' => 'C',
+            'د' => 'D',
+        ];
+
+        $firstToken = Str::before($text, ' ');
+
+        if (isset($letterMap[$firstToken])) {
+            return $letterMap[$firstToken];
+        }
+
+        foreach ($quiz['acceptable'] as $acceptable) {
+            if (str_contains($text, Str::lower($acceptable))) {
+                return $quiz['correct'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function quizForLesson(?Lesson $lesson, array $history = []): array
+    {
+        $context = Str::lower(($lesson?->title ?? '').' '.strip_tags($lesson?->summary ?? '').' '.strip_tags($lesson?->content ?? ''));
+        $bank = $this->quizBank();
+        $preferredKey = str_contains($context, 'dns') ? 'dns-purpose' : 'cia-triad';
+        $askedKeys = $this->askedQuizKeysFromHistory($history);
+
+        if (! in_array($preferredKey, $askedKeys, true)) {
+            return $bank[$preferredKey];
+        }
+
+        foreach ($bank as $key => $quiz) {
+            if (! in_array($key, $askedKeys, true)) {
+                return $quiz;
+            }
+        }
+
+        return $bank[$preferredKey];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function askedQuizKeysFromHistory(array $history): array
+    {
+        $asked = [];
+
+        foreach ($history as $item) {
+            if (($item['role'] ?? null) !== 'assistant') {
+                continue;
+            }
+
+            $content = trim((string) ($item['content'] ?? ''));
+
+            if ($content === '') {
+                continue;
+            }
+
+            foreach ($this->quizBank() as $key => $quiz) {
+                if (
+                    str_contains($content, $quiz['question_en'])
+                    || str_contains($content, $quiz['question_ar'])
+                ) {
+                    $asked[] = $key;
+                }
+            }
+        }
+
+        return array_values(array_unique($asked));
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function quizBank(): array
+    {
+        return [
+            'dns-purpose' => [
+                'question_en' => 'What does DNS primarily do?',
+                'question_ar' => 'ما الوظيفة الأساسية لـ DNS؟',
+                'options_en' => [
+                    'A. Encrypts files on disk',
+                    'B. Translates domain names to IP addresses',
+                    'C. Blocks all phishing emails automatically',
+                    'D. Stores user passwords',
+                ],
+                'options_ar' => [
+                    'أ. تشفير الملفات على القرص',
+                    'ب. ترجمة أسماء النطاقات إلى عناوين IP',
+                    'ج. منع كل رسائل التصيد تلقائياً',
+                    'د. تخزين كلمات مرور المستخدمين',
+                ],
+                'correct' => 'B',
+                'correct_ar' => 'ب',
+                'acceptable' => ['domain names', 'ip address', 'ip addresses', 'dns names', 'أسماء النطاقات', 'عناوين ip', 'عناوين آي بي'],
+                'explanation_en' => 'DNS maps human-readable domain names to IP addresses so browsers and apps can find the right server.',
+                'explanation_ar' => 'DNS يربط أسماء النطاقات المفهومة للبشر بعناوين IP حتى يعرف المتصفح أو التطبيق الخادم الصحيح.',
+            ],
+            'cia-triad' => [
+                'question_en' => 'Which three ideas make up the CIA triad?',
+                'question_ar' => 'ما العناصر الثلاثة التي تكوّن نموذج CIA Triad؟',
+                'options_en' => [
+                    'A. Code, Identity, Access',
+                    'B. Confidentiality, Integrity, Availability',
+                    'C. Capture, Inspect, Alert',
+                    'D. Cloud, Internet, Authentication',
+                ],
+                'options_ar' => [
+                    'أ. الكود، الهوية، الوصول',
+                    'ب. السرية، السلامة، التوافر',
+                    'ج. الالتقاط، الفحص، التنبيه',
+                    'د. السحابة، الإنترنت، المصادقة',
+                ],
+                'correct' => 'B',
+                'correct_ar' => 'ب',
+                'acceptable' => ['confidentiality', 'integrity', 'availability', 'سرية', 'السلامة', 'التوافر'],
+                'explanation_en' => 'The CIA triad is the classic security model: protect confidentiality, preserve integrity, and maintain availability.',
+                'explanation_ar' => 'نموذج CIA Triad يركز على حماية السرية، الحفاظ على السلامة، وضمان التوافر.',
+            ],
+            'mfa-purpose' => [
+                'question_en' => 'What is the main purpose of MFA?',
+                'question_ar' => 'ما الهدف الأساسي من MFA؟',
+                'options_en' => [
+                    'A. Make passwords public',
+                    'B. Add another verification factor beyond the password',
+                    'C. Disable account monitoring',
+                    'D. Replace all security training',
+                ],
+                'options_ar' => [
+                    'أ. جعل كلمات المرور عامة',
+                    'ب. إضافة عامل تحقق آخر بجانب كلمة المرور',
+                    'ج. تعطيل مراقبة الحسابات',
+                    'د. استبدال كل التدريب الأمني',
+                ],
+                'correct' => 'B',
+                'correct_ar' => 'ب',
+                'acceptable' => ['another verification factor', 'second factor', 'multi factor', 'عامل تحقق', 'عامل آخر', 'عامل ثاني'],
+                'explanation_en' => 'MFA reduces account takeover risk by requiring another proof of identity beyond the password.',
+                'explanation_ar' => 'MFA يقلل خطر الاستيلاء على الحساب لأنه يطلب دليلاً إضافياً على الهوية بجانب كلمة المرور.',
+            ],
+        ];
+    }
+
     private function messages(string $prompt, ?Lesson $lesson, array $history, string $message): array
     {
         $messages = [
@@ -565,10 +929,10 @@ If it is urgent, make the next message one focused question and I will help as s
      * @param  array<int, array{role: string, content: string}>  $messages
      * @return array{content: string, tokens: int}
      */
-    private function resolveAiResponse(array $messages, string $fallbackContent): array
+    private function resolveAiResponse(array $messages, string $fallbackContent, string $version): array
     {
-        if (config('services.groq.api_key')) {
-            $groq = $this->callGroq($messages);
+        if ($groqApiKey = $this->groqApiKey($version)) {
+            $groq = $this->callGroq($messages, $groqApiKey, $version);
 
             if ($groq['ok']) {
                 return ['content' => $groq['content'], 'tokens' => $groq['tokens']];
@@ -594,10 +958,10 @@ If it is urgent, make the next message one focused question and I will help as s
      * @param  array<int, array{role: string, content: string}>  $messages
      * @return array{ok: bool, provider: string, content: string, tokens: int, status: int|null, error: string|null, body: string|null}
      */
-    private function callGroq(array $messages): array
+    private function callGroq(array $messages, string $apiKey, string $version): array
     {
         try {
-            $response = Http::withToken(config('services.groq.api_key'))
+            $response = Http::withToken($apiKey)
                 ->timeout(30)
                 ->post('https://api.groq.com/openai/v1/chat/completions', [
                     'model' => config('services.groq.model'),
@@ -607,10 +971,25 @@ If it is urgent, make the next message one focused question and I will help as s
                     'top_p' => 0.9,
                 ]);
         } catch (\Throwable $exception) {
-            return $this->failedProviderResult('groq', null, $exception->getMessage());
+            return $this->failedProviderResult('groq-'.$version, null, $exception->getMessage());
         }
 
-        return $this->providerResult('groq', $response);
+        return $this->providerResult('groq-'.$version, $response);
+    }
+
+    private function groqApiKey(string $version): ?string
+    {
+        $key = $version === 'multi'
+            ? config('services.groq.multi_api_key')
+            : config('services.groq.single_api_key');
+
+        $key = trim((string) $key);
+
+        if ($key === '') {
+            $key = trim((string) config('services.groq.api_key'));
+        }
+
+        return $key !== '' ? $key : null;
     }
 
     /**
@@ -699,15 +1078,7 @@ If it is urgent, make the next message one focused question and I will help as s
     private function fallbackResponse(string $message, string $agentType, ?Lesson $lesson): string
     {
         if ($this->isGreetingOnly($message)) {
-            if ($this->containsArabic($message)) {
-                return 'مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.
-
-كيف أقدر أساعدك اليوم؟ يمكنني شرح مفهوم، اقتراح مصادر، عمل اختبار قصير، أو بناء خطة إذا طلبت ذلك.';
-            }
-
-            return 'Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.
-
-How can I help you today? I can explain a concept, suggest resources, quiz you, or build a plan if you ask for one.';
+            return $this->greetingResponse($message, $agentType);
         }
 
         if (in_array($agentType, ['single_tutor', 'navigation'], true) && $this->isStudyPlanRequest($message)) {
@@ -736,6 +1107,26 @@ Which level are you?';
             'navigation' => 'Guide focus: start with the current lesson goals, complete the quiz, then continue to the next lesson in the sidebar. For this topic, focus on: '.($lesson?->summary ?? 'core cybersecurity foundations').'.',
             'video' => $this->videoFallbackResponse($lesson, $message),
             default => 'Here is a study-safe explanation: '.($lesson?->summary ?? 'break the concept into definition, risk, example, and defense.').' Your question was: "'.Str::limit($message, 120).'".',
+        };
+    }
+
+    private function greetingResponse(string $message, string $agentType): string
+    {
+        $arabic = $this->containsArabic($message);
+
+        return match ($agentType) {
+            'navigation' => $arabic
+                ? "مرحباً! تبويب Guide مفعل.\n\nأساعدك في الخطط، المسارات، الجداول، واختيار الدرس التالي. هل تريد خطة أم توجيهاً للخطوة القادمة؟"
+                : "Hello! Guide is active.\n\nI can help with plans, roadmaps, schedules, and choosing the next lesson. Do you want a plan or guidance on the next step?",
+            'explanation' => $arabic
+                ? "مرحباً! تبويب Tutor مفعل.\n\nأساعدك في شرح مفاهيم الأمن السيبراني وأمثلة دفاعية آمنة. ما المفهوم الذي تريد شرحه؟"
+                : "Hello! Tutor is active.\n\nI can explain cybersecurity concepts with safe defensive examples. What concept would you like to understand?",
+            'video' => $arabic
+                ? "مرحباً! تبويب Video مفعل.\n\nأرشح فقط الفيديوهات المعتمدة داخل هذا الدرس. هل تريد معرفة أي فيديو تبدأ به؟"
+                : "Hello! Video is active.\n\nI only recommend approved videos embedded in this lesson. Would you like to know which one to watch first?",
+            default => $arabic
+                ? "مرحباً! أنا Cyber Mentor، مساعدك المتخصص في الأمن السيبراني.\n\nكيف أقدر أساعدك اليوم؟ يمكنني شرح مفهوم، اقتراح مصادر، عمل اختبار قصير، أو بناء خطة إذا طلبت ذلك."
+                : "Hello! I am Cyber Mentor, your specialized cybersecurity study assistant.\n\nHow can I help you today? I can explain a concept, suggest resources, quiz you, or build a plan if you ask for one.",
         };
     }
 
