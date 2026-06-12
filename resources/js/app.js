@@ -321,21 +321,28 @@ if (window.cyberLesson) {
 
     const shouldShowLevelPicker = (message) => {
         const text = message.toLowerCase();
-
-        return (
-            text.includes('beginner')
+        const hasEnglishLevels = text.includes('beginner')
             && text.includes('intermediate')
-            && text.includes('expert')
-            && (
-                text.includes('before i build your plan')
-                || text.includes('choose your current level')
-                || text.includes('which level are you')
-                || text.includes('اختر مستواك')
-                || text.includes('ما هو مستواك')
-                || text.includes('قبل ما أبني')
-                || text.includes('قبل أن أبني')
-            )
+            && text.includes('expert');
+        const hasArabicLevels = (
+            (text.includes('مبتدئ') || text.includes('مبتدي') || text.includes('مبتدئة'))
+            && (text.includes('متوسط') || text.includes('متوسطة'))
+            && (text.includes('محترف') || text.includes('خبير') || text.includes('متقدم') || text.includes('متقدمة'))
         );
+        const asksForLevel = (
+            text.includes('before i build your plan')
+            || text.includes('choose your current level')
+            || text.includes('which level are you')
+            || text.includes('اختر مستواك')
+            || text.includes('اختَر مستواك')
+            || text.includes('مستواك الحالي')
+            || text.includes('ما هو مستواك')
+            || text.includes('ما مستواك')
+            || text.includes('قبل ما أبني')
+            || text.includes('قبل أن أبني')
+        );
+
+        return asksForLevel && (hasEnglishLevels || hasArabicLevels);
     };
 
     const closeLevelPicker = () => {
@@ -344,31 +351,44 @@ if (window.cyberLesson) {
 
     const showLevelPicker = () => {
         closeLevelPicker();
+        const arabic = lastUserLanguage === 'ar';
+        const labels = {
+            eyebrow: arabic ? 'Cyber Mentor' : 'Cyber Mentor',
+            title: arabic ? 'اختر مستواك' : 'Choose your level',
+            close: arabic ? 'إغلاق' : 'Close',
+            beginner: arabic ? 'مبتدئ' : 'Beginner',
+            beginnerDescription: arabic ? 'جديد في الأمن السيبراني أو ما زلت تتعلم الأساسيات.' : 'New to cybersecurity or still learning the basics.',
+            intermediate: arabic ? 'متوسط' : 'Intermediate',
+            intermediateDescription: arabic ? 'تفهم أساسيات الشبكات أو Linux أو مفاهيم الأمن الأساسية.' : 'You know networking, Linux, or basic security concepts.',
+            expert: arabic ? 'محترف' : 'Expert',
+            expertDescription: arabic ? 'لديك خبرة عملية وتريد مساراً متقدماً أو تخصصاً أدق.' : 'You have hands-on experience and want advanced specialization.',
+        };
 
         const modal = document.createElement('div');
         modal.id = 'level-picker-modal';
         modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4';
+        modal.dir = arabic ? 'rtl' : 'ltr';
         modal.innerHTML = `
             <div class="w-full max-w-md rounded-lg border border-white/10 bg-slate-900 p-5 text-white shadow-2xl">
                 <div class="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                        <p class="text-xs font-semibold uppercase text-cyan-200">Cyber Mentor</p>
-                        <h3 class="mt-1 text-lg font-semibold">Choose your level</h3>
+                    <div class="${arabic ? 'text-right' : 'text-left'}">
+                        <p class="text-xs font-semibold uppercase text-cyan-200">${labels.eyebrow}</p>
+                        <h3 class="mt-1 text-lg font-semibold">${labels.title}</h3>
                     </div>
-                    <button type="button" data-level-close class="rounded-md border border-white/10 px-2 py-1 text-sm text-slate-300 hover:bg-white/10">X</button>
+                    <button type="button" data-level-close class="rounded-md border border-white/10 px-2 py-1 text-sm text-slate-300 hover:bg-white/10">${labels.close}</button>
                 </div>
                 <div class="space-y-2">
-                    <button type="button" data-level="Beginner" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-left hover:border-cyan-300">
-                        <span class="block font-semibold text-cyan-100">Beginner</span>
-                        <span class="text-sm text-slate-300">New to cybersecurity or still learning the basics.</span>
+                    <button type="button" data-level="Beginner" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 ${arabic ? 'text-right' : 'text-left'} hover:border-cyan-300">
+                        <span class="block font-semibold text-cyan-100">${labels.beginner}</span>
+                        <span class="text-sm text-slate-300">${labels.beginnerDescription}</span>
                     </button>
-                    <button type="button" data-level="Intermediate" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-left hover:border-cyan-300">
-                        <span class="block font-semibold text-cyan-100">Intermediate</span>
-                        <span class="text-sm text-slate-300">You know networking, Linux, or basic security concepts.</span>
+                    <button type="button" data-level="Intermediate" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 ${arabic ? 'text-right' : 'text-left'} hover:border-cyan-300">
+                        <span class="block font-semibold text-cyan-100">${labels.intermediate}</span>
+                        <span class="text-sm text-slate-300">${labels.intermediateDescription}</span>
                     </button>
-                    <button type="button" data-level="Expert" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-left hover:border-cyan-300">
-                        <span class="block font-semibold text-cyan-100">Expert</span>
-                        <span class="text-sm text-slate-300">You have hands-on experience and want advanced specialization.</span>
+                    <button type="button" data-level="Expert" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 ${arabic ? 'text-right' : 'text-left'} hover:border-cyan-300">
+                        <span class="block font-semibold text-cyan-100">${labels.expert}</span>
+                        <span class="text-sm text-slate-300">${labels.expertDescription}</span>
                     </button>
                 </div>
             </div>
@@ -379,8 +399,8 @@ if (window.cyberLesson) {
             button.addEventListener('click', () => {
                 const level = button.dataset.level;
                 closeLevelPicker();
-                const message = lastUserLanguage === 'ar'
-                    ? `أنا ${level}. من فضلك ابنِ لي خطة لتعلم الأمن السيبراني مناسبة لمستواي.`
+                const message = arabic
+                    ? `أنا مستواي ${level}. من فضلك ابنِ لي خطة لتعلم الأمن السيبراني مناسبة لمستواي.`
                     : `I am ${level}. Please build a cybersecurity learning plan for my level.`;
 
                 sendMessage(message);
