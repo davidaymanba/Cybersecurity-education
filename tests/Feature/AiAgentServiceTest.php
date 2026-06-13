@@ -376,8 +376,10 @@ class AiAgentServiceTest extends TestCase
             'single',
         );
 
-        $this->assertStringContainsString('شرح آمن', $response['message']);
+        $this->assertStringContainsString('MFA', $response['message']);
+        $this->assertMatchesRegularExpression('/[\x{0600}-\x{06FF}]/u', $response['message']);
         $this->assertStringNotContainsString('Here is a study-safe explanation', $response['message']);
+        $this->assertStringNotContainsString("Let's break it down", $response['message']);
         Http::assertNothingSent();
     }
 
@@ -489,7 +491,7 @@ class AiAgentServiceTest extends TestCase
         );
 
         $this->assertStringNotContainsString('I cannot help', $response['message']);
-        $this->assertStringContainsString('study-safe explanation', $response['message']);
+        $this->assertStringContainsString('study-safe', $response['message']);
 
         Http::assertNothingSent();
     }

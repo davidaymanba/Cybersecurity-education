@@ -279,6 +279,19 @@ If it is urgent, make the next message one focused question and I will help as s
         return preg_match('/[\x{0600}-\x{06FF}]/u', $message) === 1;
     }
 
+    private function prefersArabicReply(string $message, array $history): bool
+    {
+        if ($this->containsArabic($message)) {
+            return true;
+        }
+
+        if (preg_match('/[a-z]/i', $message) === 1) {
+            return false;
+        }
+
+        return $this->containsArabic($this->lastAssistantMessage($history) ?? '');
+    }
+
     private function isGreetingOnly(string $message): bool
     {
         $text = trim(Str::lower($message));
@@ -288,10 +301,106 @@ If it is urgent, make the next message one focused question and I will help as s
         return preg_match('/^(h+i+|hello+|hey+|salam|السلام( عليكم( ورحمة الله( وبركاته)?)?)?|اهلا|أهلا|أهلاً|اهلين|أهلين|مرحبا|مرحباً|هاي|هاى|هلا|يا هلا|ياهلا|هلا والله)$/u', $text) === 1;
     }
 
+    private function isSmallTalk(string $message): bool
+    {
+        $text = trim(Str::lower($message));
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        if ($text === '') {
+            return false;
+        }
+
+        return $this->containsAny($text, [
+            'how are you',
+            'how r u',
+            'how are u',
+            'hows it going',
+            'how is it going',
+            'whats up',
+            'what is up',
+            'sup',
+            'how do you do',
+            'thank you',
+            'thanks',
+            'thx',
+            'good morning',
+            'good evening',
+            'كيف حالك',
+            'كيف الحال',
+            'كيفك',
+            'كيف الأحوال',
+            'كيف الاحوال',
+            'شخبارك',
+            'شلونك',
+            'وش اخبارك',
+            'وش أخبارك',
+            'ايش اخبارك',
+            'اخبارك',
+            'أخبارك',
+            'ايه الاخبار',
+            'ايه الأخبار',
+            'إيه الأخبار',
+            'عامل ايه',
+            'عامل إيه',
+            'عاملة ايه',
+            'ازيك',
+            'إزيك',
+            'ازيّك',
+            'شكرا',
+            'شكراً',
+            'مشكور',
+            'تسلم',
+            'يعطيك العافية',
+            'صباح الخير',
+            'مساء الخير',
+        ]);
+    }
+
+    private function hasLearningIntent(string $message): bool
+    {
+        return $this->isStudyPlanRequest($message)
+            || $this->isConceptRequest($message)
+            || $this->isResourceRequest($message)
+            || $this->isQuizRequest($message)
+            || $this->isVideoRequest($message);
+    }
+
+    private function smallTalkResponse(string $message, string $agentType, ?User $user): string
+    {
+        $arabic = $this->containsArabic($message);
+        $name = trim((string) $user?->name);
+        $displayName = $name !== '' ? $name : ($arabic ? 'صديقي' : 'there');
+
+        if ($arabic) {
+            $scope = match ($agentType) {
+                'navigation' => 'تحب نبدأ بخطة تعلم، ترتيب الدروس، أو مصادر مفيدة؟',
+                'explanation' => 'تحب أشرح لك مفهوماً في الأمن السيبراني أو نراجع فكرة من الدرس؟',
+                'video' => 'تحب أرشّح لك فيديو معتمد من هذا الدرس؟',
+                default => 'تحب نبدأ بشرح مفهوم، خطة تعلم، مصادر، أو اختبار قصير؟',
+            };
+
+            return "الحمد لله تمام، {$displayName}! جاهز أساعدك في الأمن السيبراني.\n\n{$scope}";
+        }
+
+        $scope = match ($agentType) {
+            'navigation' => 'Want to start with a study plan, lesson order, or useful resources?',
+            'explanation' => 'Would you like me to explain a cybersecurity concept or review an idea from the lesson?',
+            'video' => 'Would you like me to recommend an approved video from this lesson?',
+            default => 'Want to start with a concept explanation, a study plan, resources, or a quick quiz?',
+        };
+
+        return "Doing well, thanks {$displayName}! I am ready to help you with cybersecurity.\n\n{$scope}";
+    }
+
     private function deterministicResponse(string $message, string $agentType, array $history, ?Lesson $lesson, User $user): ?string
     {
         if ($this->isGreetingOnly($message)) {
             return $this->fallbackResponse($message, $agentType, $lesson, $user);
+        }
+
+        if ($this->isSmallTalk($message) && ! $this->hasLearningIntent($message)) {
+            return $this->smallTalkResponse($message, $agentType, $user);
         }
 
         if (
@@ -305,6 +414,10 @@ If it is urgent, make the next message one focused question and I will help as s
         if (in_array($agentType, ['single_tutor', 'explanation'], true)) {
             if ($this->isAnotherQuizRequest($message, $history)) {
                 return $this->quizQuestionResponse($message, $lesson, $history);
+            }
+
+            if ($this->isQuizDeclineRequest($message, $history)) {
+                return $this->quizDeclineResponse($message, $history);
             }
 
             if ($response = $this->quizEvaluationResponse($message, $history)) {
@@ -440,6 +553,63 @@ If it is urgent, make the next message one focused question and I will help as s
                 'سؤال آخر',
                 'السؤال التالي',
             ]);
+    }
+
+    private function lastAssistantOfferedAnotherQuestion(array $history): bool
+    {
+        $assistantMessage = $this->lastAssistantMessage($history);
+
+        if (! $assistantMessage) {
+            return false;
+        }
+
+        return str_contains($assistantMessage, 'Would you like another question?')
+            || str_contains($assistantMessage, 'هل تريد سؤالاً آخر؟');
+    }
+
+    private function isQuizDeclineRequest(string $message, array $history): bool
+    {
+        if (! $this->lastAssistantOfferedAnotherQuestion($history)) {
+            return false;
+        }
+
+        $text = trim(Str::lower($message));
+        $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        if ($text === '') {
+            return false;
+        }
+
+        return preg_match('/\b(no|nope|nah|stop|done|later|not now|no thanks|enough)\b/u', $text) === 1
+            || $this->containsAny($text, [
+                'لا',
+                'لأ',
+                'مش دلوقتي',
+                'مش دلوقت',
+                'خلاص',
+                'كفاية',
+                'كفايه',
+                'يكفي',
+                'بعدين',
+                'لاحقا',
+                'لاحقاً',
+                'مش عايز',
+                'ما ابغى',
+                'ما أبغى',
+                'ما ابي',
+                'لا شكرا',
+                'لا شكراً',
+            ]);
+    }
+
+    private function quizDeclineResponse(string $message, array $history): string
+    {
+        if ($this->prefersArabicReply($message, $history)) {
+            return 'تمام، خلصنا الاختبار. لو حابب نكمل، أقدر أشرح لك مفهوماً، أرشّح مصادر، أو أبني لك خطة تعلم. وش تحب نسوي؟';
+        }
+
+        return 'No problem, we will stop the quiz here. Whenever you are ready, I can explain a concept, suggest resources, or build a study plan. What would you like to do next?';
     }
 
     private function isConceptRequest(string $message): bool
@@ -680,7 +850,7 @@ If it is urgent, make the next message one focused question and I will help as s
     private function quizQuestionResponse(string $message, ?Lesson $lesson, array $history = []): string
     {
         $quiz = $this->quizForLesson($lesson, $history);
-        $useArabic = $this->containsArabic($message) || $this->containsArabic($this->lastAssistantMessage($history) ?? '');
+        $useArabic = $this->prefersArabicReply($message, $history);
 
         if ($useArabic) {
             return "**اختبار سريع**\n\n{$quiz['question_ar']}\n{$quiz['options_ar'][0]}\n{$quiz['options_ar'][1]}\n{$quiz['options_ar'][2]}\n{$quiz['options_ar'][3]}\n\nاكتب أ، ب، ج، أو د وسأخبرك هل إجابتك صحيحة أم لا.";
@@ -691,6 +861,10 @@ If it is urgent, make the next message one focused question and I will help as s
 
     private function quizEvaluationResponse(string $message, array $history): ?string
     {
+        if ($this->lastAssistantOfferedAnotherQuestion($history)) {
+            return null;
+        }
+
         $quiz = $this->lastQuizFromHistory($history);
 
         if (! $quiz) {
@@ -698,7 +872,7 @@ If it is urgent, make the next message one focused question and I will help as s
         }
 
         $answer = $this->normalizeQuizAnswer($message, $quiz);
-        $useArabic = $this->containsArabic($message) || $this->containsArabic($this->lastAssistantMessage($history) ?? '');
+        $useArabic = $this->prefersArabicReply($message, $history);
 
         if (! $answer) {
             return $useArabic
@@ -939,12 +1113,12 @@ If it is urgent, make the next message one focused question and I will help as s
             ['role' => 'system', 'content' => $this->lessonContext($lesson)],
         ];
 
-        foreach (array_slice($history, -12) as $item) {
+        foreach (array_slice($history, -8) as $item) {
             $role = $item['role'] ?? null;
             $content = trim((string) ($item['content'] ?? ''));
 
             if (in_array($role, ['user', 'assistant'], true) && $content !== '') {
-                $messages[] = ['role' => $role, 'content' => Str::limit($content, 4000)];
+                $messages[] = ['role' => $role, 'content' => Str::limit($content, 700)];
             }
         }
 
@@ -980,17 +1154,6 @@ If it is urgent, make the next message one focused question and I will help as s
 
         if ($lastAssistant && (str_contains($lastAssistant, 'Which level are you?') || str_contains($lastAssistant, 'وش مستواك؟'))) {
             $lines[] = '- Pending plan state: the assistant asked for Beginner, Intermediate, or Expert; use the student reply as the level and continue the plan.';
-        }
-
-        $recentTurns = array_slice($history, -8);
-
-        foreach ($recentTurns as $item) {
-            $role = ($item['role'] ?? '') === 'assistant' ? 'assistant' : 'student';
-            $content = trim((string) ($item['content'] ?? ''));
-
-            if ($content !== '') {
-                $lines[] = '- '.$role.': '.Str::limit(preg_replace('/\s+/u', ' ', $content) ?? $content, 180);
-            }
         }
 
         $lines[] = '- current student message: '.Str::limit(preg_replace('/\s+/u', ' ', trim($message)) ?? trim($message), 180);
@@ -1341,16 +1504,69 @@ If it is urgent, make the next message one focused question and I will help as s
 
     private function explanationFallbackResponse(string $message, ?Lesson $lesson): string
     {
-        $summary = $lesson?->summary ?? 'قسّم المفهوم إلى تعريف، سبب أهميته، مثال دفاعي، وخطوة تطبيق آمنة';
+        $arabic = $this->containsArabic($message);
 
-        if ($this->containsArabic($message)) {
-            return "هذا شرح آمن ومختصر:\n\n"
-                ."**الفكرة:** {$summary}.\n\n"
-                ."**مثال دفاعي:** اربط المفهوم بكيفية الحماية أو الكشف أو تقليل المخاطر، بدون خطوات هجومية.\n\n"
-                .'تبغى أشرحه لك بمثال أبسط أو أعطيك روابط للتعلم؟';
+        if ($concept = $this->knownConceptExplanation($message, $arabic)) {
+            return $concept;
         }
 
-        return 'Here is a study-safe explanation: '.$summary.'. Your question was: "'.Str::limit($message, 120).'".';
+        $summary = $lesson?->summary;
+
+        if ($arabic) {
+            $idea = $summary
+                ? strip_tags($summary)
+                : 'حدّد المفهوم اللي تبغاه بدقة وأشرحه لك: تعريفه، سبب أهميته، ومثال دفاعي عملي';
+
+            return "خلّنا نشرحها بشكل آمن ومبسّط:\n\n"
+                ."**الفكرة:** {$idea}.\n\n"
+                ."**مثال دفاعي:** اربط المفهوم بطرق الحماية أو الكشف أو تقليل المخاطر، بدون أي خطوات هجومية.\n\n"
+                .'تبغى مثال أبسط، مقارنة، ولا روابط للتعلم؟';
+        }
+
+        $idea = $summary
+            ? strip_tags($summary)
+            : 'tell me the exact concept and I will cover its definition, why it matters, and a practical defensive example';
+
+        return "Let's break it down in a study-safe way:\n\n"
+            ."**Idea:** {$idea}.\n\n"
+            ."**Defensive example:** connect the concept to how you protect, detect, or reduce risk, with no offensive steps.\n\n"
+            .'Would you like a simpler example, a comparison, or some learning links?';
+    }
+
+    private function knownConceptExplanation(string $message, bool $arabic): ?string
+    {
+        $text = Str::lower($message);
+
+        $concepts = [
+            'cia' => [
+                'match' => ['cia triad', 'cia', 'confidentiality integrity', 'السرية والسلامة', 'سي اي ايه', 'مثلث', 'cia triad and risk'],
+                'en' => "**CIA Triad** is the core model for security goals:\n\n1. **Confidentiality** - keep data private and accessible only to authorized people (encryption, access control).\n2. **Integrity** - keep data accurate and unaltered (hashing, change control).\n3. **Availability** - keep systems and data reachable when needed (backups, redundancy).\n\n**Risk** is the chance that a threat exploits a weakness and harms one of these three. You manage it by reducing likelihood or impact (controls, patching, monitoring).\n\nWant an example of a control for each part?",
+                'ar' => "**نموذج CIA Triad** هو الأساس لأهداف الأمن:\n\n1. **السرية (Confidentiality)** - تبقى البيانات خاصة ومتاحة للمصرّح لهم فقط (تشفير، صلاحيات وصول).\n2. **السلامة (Integrity)** - تبقى البيانات دقيقة وغير معدّلة (hashing، التحكم في التغييرات).\n3. **التوافر (Availability)** - تبقى الأنظمة والبيانات متاحة وقت الحاجة (نسخ احتياطي، تكرار).\n\n**المخاطرة (Risk)** هي احتمال إن تهديد يستغل ثغرة ويضر واحد من الثلاثة. تتعامل معها بتقليل الاحتمال أو الأثر (ضوابط، تحديثات، مراقبة).\n\nتبغى مثال لضابط حماية لكل عنصر؟",
+            ],
+            'phishing' => [
+                'match' => ['phishing', 'تصيد', 'فيشينج'],
+                'en' => "**Phishing** is a social-engineering attack where an attacker impersonates a trusted party to trick you into revealing credentials or clicking a malicious link.\n\n**How to defend:**\n1. Check the sender address and the real link before clicking.\n2. Never enter passwords from email links - go to the site directly.\n3. Enable MFA so a stolen password alone is not enough.\n4. Report suspicious emails to your security team.\n\nWant the common red flags to watch for?",
+                'ar' => "**التصيّد (Phishing)** هجوم هندسة اجتماعية، المهاجم بينتحل جهة موثوقة عشان يخدعك وتكشف بيانات دخولك أو تضغط رابط خبيث.\n\n**طرق الحماية:**\n1. افحص عنوان المُرسل والرابط الحقيقي قبل الضغط.\n2. ما تدخل كلمة المرور من روابط الإيميل - ادخل الموقع مباشرة.\n3. فعّل MFA عشان كلمة المرور المسروقة وحدها ما تكفي.\n4. بلّغ فريق الأمن عن الرسائل المشبوهة.\n\nتبغى أهم العلامات التحذيرية؟",
+            ],
+            'mfa' => [
+                'match' => ['mfa', '2fa', 'multi factor', 'multi-factor', 'two factor', 'تحقق ثنائي', 'المصادقة الثنائية', 'عامل ثاني'],
+                'en' => "**MFA (Multi-Factor Authentication)** adds a second proof of identity beyond your password - something you have (phone/token) or are (fingerprint).\n\n**Why it matters:** even if a password is stolen, the attacker still cannot log in without the second factor. It is one of the strongest, simplest defenses against account takeover.\n\nWant to know which MFA types are strongest?",
+                'ar' => "**MFA (المصادقة متعددة العوامل)** تضيف دليل هوية ثاني بعد كلمة المرور - شيء تملكه (هاتف/توكن) أو شيء أنت (بصمة).\n\n**ليه مهمة:** حتى لو سُرقت كلمة المرور، المهاجم ما يقدر يدخل بدون العامل الثاني. من أقوى وأبسط الدفاعات ضد الاستيلاء على الحساب.\n\nتبغى تعرف أقوى أنواع MFA؟",
+            ],
+            'dns' => [
+                'match' => ['dns', 'domain name system', 'نظام أسماء النطاقات', 'دي ان اس'],
+                'en' => "**DNS (Domain Name System)** translates human-readable domain names (like example.com) into IP addresses so devices can find each other.\n\n**Security angle:** attackers may try DNS spoofing or poisoning to redirect you to fake sites. Defenses include DNSSEC, trusted resolvers, and monitoring for unusual lookups.\n\nWant a simple analogy for how DNS works?",
+                'ar' => "**DNS (نظام أسماء النطاقات)** يترجم أسماء النطاقات المفهومة للبشر (زي example.com) إلى عناوين IP عشان الأجهزة تلاقي بعض.\n\n**الجانب الأمني:** المهاجمون ممكن يحاولوا DNS spoofing أو poisoning عشان يحوّلوك لمواقع مزيفة. الحماية تشمل DNSSEC، resolvers موثوقة، ومراقبة الاستعلامات الغريبة.\n\nتبغى تشبيه بسيط لطريقة عمل DNS؟",
+            ],
+        ];
+
+        foreach ($concepts as $concept) {
+            if ($this->containsAny($text, $concept['match'])) {
+                return $arabic ? $concept['ar'] : $concept['en'];
+            }
+        }
+
+        return null;
     }
 
     private function greetingResponse(string $message, string $agentType, ?User $user): string
