@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\AiInteraction;
 use App\Models\Lesson;
 use App\Models\User;
+use App\Traits\DetectsArabic;
+use GuzzleHttp\Client as GuzzleClient;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +15,7 @@ use Illuminate\Support\Str;
 
 class AiAgentService
 {
+    use DetectsArabic;
     private const AI_RATE_LIMIT_ATTEMPTS = 20;
 
     private const AI_RATE_LIMIT_DECAY_SECONDS = 60;
@@ -89,6 +92,9 @@ class AiAgentService
         $rawContent = $content;
         $content = $this->personalizeResponse($content, $message, $user);
 
+        // Persist learning level if detected in this conversation turn.
+        $this->maybePersistLevel($user, $message, $history);
+
         $interaction = AiInteraction::create([
             'user_id' => $user->id,
             'lesson_id' => $lesson?->id,
@@ -133,6 +139,7 @@ class AiAgentService
     {
         $text = Str::lower($message);
 
+        // Always block — explicit harmful intent regardless of context.
         $directHarmfulIntent = [
             'steal password',
             'steal credentials',
@@ -152,6 +159,7 @@ class AiAgentService
             'تفريغ lsass',
         ];
 
+        // Dangerous capability keywords.
         $dangerousCapability = [
             'credential stuffing',
             'phishing page',
@@ -194,40 +202,78 @@ class AiAgentService
             'تجاوز تسجيل الدخول',
         ];
 
-        $instructionalIntent = [
-            'how to',
-            'steps',
-            'code',
-            'script',
-            'payload',
-            'build',
-            'create',
-            'make',
-            'generate',
-            'give me',
-            'send me',
-            'write',
-            'اكتب',
-            'اعمل',
-            'اصنع',
-            'أنشئ',
-            'انشئ',
-            'ازاي اعمل',
-            'ازاي أعمل',
-            'كيف اصنع',
+        // Offensive action verbs — building/deploying attacks, NOT learning about them.
+        // We deliberately exclude generic educational phrases like "what is", "explain",
+        // "how does", "example" to preserve the platform's defensive teaching role.
+        $offensiveVerbs = [
+            'how to build',
+            'how to make',
+            'how to create',
+            'how to deploy',
+            'how to launch',
+            'how to execute a',
+            'steps to create',
+            'steps to build',
+            'steps to deploy',
+            'write me a',
+            'create for me',
+            'build me a',
+            'give me a payload',
+            'give me code for',
+            'generate a payload',
             'كيف أصنع',
-            'كيف اعمل',
-            'كيف أعمل',
-            'خطوات',
-            'كود',
-            'سكربت',
+            'كيف اصنع',
+            'كيف أبني',
+            'كيف ابني',
+            'خطوات لبناء',
+            'خطوات لإنشاء',
+            'اكتب لي كود',
+            'أنشئ لي',
+            'انشئ لي',
+            'اصنع لي',
+            'ابني لي',
         ];
 
-        $hasDirectHarmfulIntent = $this->containsAny($text, $directHarmfulIntent);
-        $hasDangerousCapability = $this->containsAny($text, $dangerousCapability);
-        $asksForInstructions = $this->containsAny($text, $instructionalIntent);
+        // Defensive intent — if present, the request is safe even if dangerous terms appear.
+        $defensiveIntent = [
+            'how to detect',
+            'how to prevent',
+            'how to protect',
+            'how to defend',
+            'how to identify',
+            'how to recognize',
+            'what is',
+            'what are',
+            'explain',
+            'definition',
+            'understand',
+            'awareness',
+            'defense',
+            'protection',
+            'incident response',
+            'كيف أكتشف',
+            'كيف أحمي',
+            'كيف أمنع',
+            'كيف أتعرف',
+            'ما هو',
+            'ما هي',
+            'اشرح',
+            'تعريف',
+            'حماية',
+            'دفاع',
+        ];
 
-        return $hasDirectHarmfulIntent || ($hasDangerousCapability && $asksForInstructions);
+        if ($this->containsAny($text, $directHarmfulIntent)) {
+            return true;
+        }
+
+        $hasDangerous      = $this->containsAny($text, $dangerousCapability);
+        $hasOffensiveVerb  = $this->containsAny($text, $offensiveVerbs);
+        $hasDefensiveIntent = $this->containsAny($text, $defensiveIntent);
+
+        // Block only when a dangerous capability is paired with an explicit offensive build/deploy
+        // intent AND the message does NOT carry defensive learning intent.
+        return $hasDangerous && $hasOffensiveVerb && ! $hasDefensiveIntent;
     }
 
     /**
@@ -361,10 +407,7 @@ Tip: combine related questions into one message to get more out of your daily qu
         return $response ?: null;
     }
 
-    private function containsArabic(string $message): bool
-    {
-        return preg_match('/[\x{0600}-\x{06FF}]/u', $message) === 1;
-    }
+    // containsArabic() is provided by the DetectsArabic trait.
 
     private function prefersArabicReply(string $message, array $history): bool
     {
@@ -1067,24 +1110,75 @@ Tip: combine related questions into one message to get more out of your daily qu
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Pick the most relevant quiz question for the given lesson context.
+     * Falls back gracefully when no topic match is found.
+     */
     private function quizForLesson(?Lesson $lesson, array $history = []): array
     {
-        $context = Str::lower(($lesson?->title ?? '').' '.strip_tags($lesson?->summary ?? '').' '.strip_tags($lesson?->content ?? ''));
-        $bank = $this->quizBank();
-        $preferredKey = str_contains($context, 'dns') ? 'dns-purpose' : 'cia-triad';
+        $context = Str::lower(
+            ($lesson?->title ?? '').' '.
+            strip_tags($lesson?->summary ?? '').' '.
+            strip_tags($lesson?->content ?? '')
+        );
+
+        $bank      = $this->quizBank();
         $askedKeys = $this->askedQuizKeysFromHistory($history);
 
-        if (! in_array($preferredKey, $askedKeys, true)) {
-            return $bank[$preferredKey];
+        // Topic → quiz key mapping (ordered by specificity).
+        $topicMap = [
+            'dns'               => 'dns-purpose',
+            'domain name'       => 'dns-purpose',
+            'cia'               => 'cia-triad',
+            'confidentiality'   => 'cia-triad',
+            'integrity'         => 'cia-triad',
+            'availability'      => 'cia-triad',
+            'mfa'               => 'mfa-purpose',
+            'multi-factor'      => 'mfa-purpose',
+            'two-factor'        => 'mfa-purpose',
+            'phishing'          => 'phishing-definition',
+            'social engineering' => 'social-engineering',
+            'pretexting'        => 'social-engineering',
+            'https'             => 'https-purpose',
+            'tls'               => 'https-purpose',
+            'ssl'               => 'https-purpose',
+            'firewall'          => 'firewall-function',
+            'sql'               => 'owasp-sqli',
+            'injection'         => 'owasp-sqli',
+            'owasp'             => 'owasp-sqli',
+            'vpn'               => 'vpn-purpose',
+            'privilege'         => 'least-privilege',
+            'least privilege'   => 'least-privilege',
+            'incident response' => 'incident-response',
+            'zero trust'        => 'zero-trust',
+            'zero-trust'        => 'zero-trust',
+            'password'          => 'password-policy',
+            'patch'             => 'patch-management',
+            'update'            => 'patch-management',
+            'vulnerability'     => 'patch-management',
+            'encrypt'           => 'encryption-types',
+            'asymmetric'        => 'encryption-types',
+            'symmetric'         => 'encryption-types',
+            'rsa'               => 'encryption-types',
+            'aes'               => 'encryption-types',
+        ];
+
+        // Find the first matching quiz that has not been asked yet.
+        foreach ($topicMap as $keyword => $quizKey) {
+            if (str_contains($context, $keyword) && ! in_array($quizKey, $askedKeys, true) && isset($bank[$quizKey])) {
+                return $bank[$quizKey];
+            }
         }
 
+        // Round-robin through the full bank, skipping already-asked questions.
         foreach ($bank as $key => $quiz) {
             if (! in_array($key, $askedKeys, true)) {
                 return $quiz;
             }
         }
 
-        return $bank[$preferredKey];
+        // All questions have been asked — restart from the beginning.
+        return reset($bank);
     }
 
     /**
@@ -1127,65 +1221,167 @@ Tip: combine related questions into one message to get more out of your daily qu
             'dns-purpose' => [
                 'question_en' => 'What does DNS primarily do?',
                 'question_ar' => 'ما الوظيفة الأساسية لـ DNS؟',
-                'options_en' => [
-                    'A. Encrypts files on disk',
-                    'B. Translates domain names to IP addresses',
-                    'C. Blocks all phishing emails automatically',
-                    'D. Stores user passwords',
-                ],
-                'options_ar' => [
-                    'أ. تشفير الملفات على القرص',
-                    'ب. ترجمة أسماء النطاقات إلى عناوين IP',
-                    'ج. منع كل رسائل التصيد تلقائياً',
-                    'د. تخزين كلمات مرور المستخدمين',
-                ],
-                'correct' => 'B',
-                'correct_ar' => 'ب',
-                'acceptable' => ['domain names', 'ip address', 'ip addresses', 'dns names', 'أسماء النطاقات', 'عناوين ip', 'عناوين آي بي'],
+                'options_en'  => ['A. Encrypts files on disk', 'B. Translates domain names to IP addresses', 'C. Blocks all phishing emails automatically', 'D. Stores user passwords'],
+                'options_ar'  => ['أ. تشفير الملفات على القرص', 'ب. ترجمة أسماء النطاقات إلى عناوين IP', 'ج. منع كل رسائل التصيد تلقائياً', 'د. تخزين كلمات مرور المستخدمين'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['domain names', 'ip address', 'ip addresses', 'dns names', 'أسماء النطاقات', 'عناوين ip'],
                 'explanation_en' => 'DNS maps human-readable domain names to IP addresses so browsers and apps can find the right server.',
                 'explanation_ar' => 'DNS يربط أسماء النطاقات المفهومة للبشر بعناوين IP حتى يعرف المتصفح أو التطبيق الخادم الصحيح.',
             ],
             'cia-triad' => [
-                'question_en' => 'Which three ideas make up the CIA triad?',
+                'question_en' => 'Which three properties make up the CIA triad?',
                 'question_ar' => 'ما العناصر الثلاثة التي تكوّن نموذج CIA Triad؟',
-                'options_en' => [
-                    'A. Code, Identity, Access',
-                    'B. Confidentiality, Integrity, Availability',
-                    'C. Capture, Inspect, Alert',
-                    'D. Cloud, Internet, Authentication',
-                ],
-                'options_ar' => [
-                    'أ. الكود، الهوية، الوصول',
-                    'ب. السرية، السلامة، التوافر',
-                    'ج. الالتقاط، الفحص، التنبيه',
-                    'د. السحابة، الإنترنت، المصادقة',
-                ],
-                'correct' => 'B',
-                'correct_ar' => 'ب',
-                'acceptable' => ['confidentiality', 'integrity', 'availability', 'سرية', 'السلامة', 'التوافر'],
-                'explanation_en' => 'The CIA triad is the classic security model: protect confidentiality, preserve integrity, and maintain availability.',
-                'explanation_ar' => 'نموذج CIA Triad يركز على حماية السرية، الحفاظ على السلامة، وضمان التوافر.',
+                'options_en'  => ['A. Code, Identity, Access', 'B. Confidentiality, Integrity, Availability', 'C. Capture, Inspect, Alert', 'D. Cloud, Internet, Authentication'],
+                'options_ar'  => ['أ. الكود، الهوية، الوصول', 'ب. السرية، السلامة، التوافر', 'ج. الالتقاط، الفحص، التنبيه', 'د. السحابة، الإنترنت، المصادقة'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['confidentiality', 'integrity', 'availability', 'سرية', 'سلامة', 'توافر'],
+                'explanation_en' => 'The CIA triad covers Confidentiality (protect data from unauthorized access), Integrity (keep data accurate), and Availability (keep systems accessible).',
+                'explanation_ar' => 'CIA Triad يركز على السرية (حماية البيانات من الوصول غير المصرح)، السلامة (الحفاظ على دقة البيانات)، والتوافر (ضمان الوصول للأنظمة).',
             ],
             'mfa-purpose' => [
                 'question_en' => 'What is the main purpose of MFA?',
                 'question_ar' => 'ما الهدف الأساسي من MFA؟',
-                'options_en' => [
-                    'A. Make passwords public',
-                    'B. Add another verification factor beyond the password',
-                    'C. Disable account monitoring',
-                    'D. Replace all security training',
-                ],
-                'options_ar' => [
-                    'أ. جعل كلمات المرور عامة',
-                    'ب. إضافة عامل تحقق آخر بجانب كلمة المرور',
-                    'ج. تعطيل مراقبة الحسابات',
-                    'د. استبدال كل التدريب الأمني',
-                ],
-                'correct' => 'B',
-                'correct_ar' => 'ب',
-                'acceptable' => ['another verification factor', 'second factor', 'multi factor', 'عامل تحقق', 'عامل آخر', 'عامل ثاني'],
-                'explanation_en' => 'MFA reduces account takeover risk by requiring another proof of identity beyond the password.',
+                'options_en'  => ['A. Make passwords public', 'B. Add another verification factor beyond the password', 'C. Disable account monitoring', 'D. Replace all security training'],
+                'options_ar'  => ['أ. جعل كلمات المرور عامة', 'ب. إضافة عامل تحقق آخر بجانب كلمة المرور', 'ج. تعطيل مراقبة الحسابات', 'د. استبدال كل التدريب الأمني'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['another verification factor', 'second factor', 'multi factor', 'عامل تحقق', 'عامل ثاني'],
+                'explanation_en' => 'MFA reduces account takeover risk by requiring a second proof of identity beyond just the password.',
                 'explanation_ar' => 'MFA يقلل خطر الاستيلاء على الحساب لأنه يطلب دليلاً إضافياً على الهوية بجانب كلمة المرور.',
+            ],
+            'phishing-definition' => [
+                'question_en' => 'Which best describes a phishing attack?',
+                'question_ar' => 'أيٌّ من التالي يصف هجوم التصيد (Phishing) بشكل أدق؟',
+                'options_en'  => ['A. Overloading a server with traffic', 'B. Tricking users into revealing credentials via fake messages', 'C. Scanning for open ports', 'D. Encrypting files for ransom'],
+                'options_ar'  => ['أ. إغراق خادم بحركة المرور', 'ب. خداع المستخدمين للكشف عن بياناتهم عبر رسائل مزيفة', 'ج. فحص المنافذ المفتوحة', 'د. تشفير الملفات طلباً للفدية'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['tricking', 'fake', 'credentials', 'خداع', 'مزيفة', 'بيانات'],
+                'explanation_en' => 'Phishing is a social engineering attack where attackers impersonate trusted entities to steal credentials or install malware.',
+                'explanation_ar' => 'التصيد هجوم هندسة اجتماعية يقوم فيه المهاجم بانتحال هوية جهة موثوقة لسرقة بيانات الدخول أو تثبيت برمجيات خبيثة.',
+            ],
+            'https-purpose' => [
+                'question_en' => 'What does HTTPS protect compared to HTTP?',
+                'question_ar' => 'ما الذي يضيفه HTTPS مقارنةً بـ HTTP؟',
+                'options_en'  => ['A. Faster page loads', 'B. Encrypted and authenticated connection between client and server', 'C. Larger file uploads', 'D. Automatic login'],
+                'options_ar'  => ['أ. تحميل أسرع للصفحات', 'ب. اتصال مشفر وموثّق بين العميل والخادم', 'ج. رفع ملفات أكبر', 'د. تسجيل دخول تلقائي'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['encrypted', 'authentication', 'tls', 'ssl', 'مشفر', 'تشفير'],
+                'explanation_en' => 'HTTPS uses TLS to encrypt data in transit and verify the server\'s identity, preventing eavesdropping and tampering.',
+                'explanation_ar' => 'HTTPS يستخدم TLS لتشفير البيانات أثناء النقل والتحقق من هوية الخادم، مما يمنع التنصت والتلاعب بالبيانات.',
+            ],
+            'firewall-function' => [
+                'question_en' => 'What is the primary job of a firewall?',
+                'question_ar' => 'ما الوظيفة الأساسية لجدار الحماية (Firewall)؟',
+                'options_en'  => ['A. Encrypt hard drive data', 'B. Filter network traffic based on rules', 'C. Back up databases automatically', 'D. Generate strong passwords'],
+                'options_ar'  => ['أ. تشفير بيانات القرص الصلب', 'ب. تصفية حركة الشبكة بناءً على قواعد', 'ج. النسخ الاحتياطي للقواعد تلقائياً', 'د. توليد كلمات مرور قوية'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['filter', 'traffic', 'rules', 'block', 'تصفية', 'حركة', 'قواعد'],
+                'explanation_en' => 'A firewall inspects incoming and outgoing network traffic and blocks packets that violate defined security rules.',
+                'explanation_ar' => 'جدار الحماية يفحص حركة الشبكة الواردة والصادرة ويحجب الحزم التي تنتهك قواعد الأمان المحددة.',
+            ],
+            'owasp-sqli' => [
+                'question_en' => 'SQL Injection attacks target which layer of an application?',
+                'question_ar' => 'هجمات SQL Injection تستهدف أي طبقة من التطبيق؟',
+                'options_en'  => ['A. The CSS styling layer', 'B. The database query layer', 'C. The DNS resolver', 'D. The TLS certificate'],
+                'options_ar'  => ['أ. طبقة CSS', 'ب. طبقة استعلامات قاعدة البيانات', 'ج. محلل DNS', 'د. شهادة TLS'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['database', 'query', 'sql', 'قاعدة البيانات', 'استعلام'],
+                'explanation_en' => 'SQL Injection inserts malicious SQL into user input to manipulate the database. Prevention: use parameterized queries and prepared statements.',
+                'explanation_ar' => 'SQL Injection تحقن كوداً SQL خبيثاً في مدخلات المستخدم للتلاعب بقاعدة البيانات. الحماية: استخدم Parameterized Queries وPrepared Statements.',
+            ],
+            'vpn-purpose' => [
+                'question_en' => 'What is the primary security benefit of a VPN?',
+                'question_ar' => 'ما الفائدة الأمنية الأساسية لـ VPN؟',
+                'options_en'  => ['A. Speeds up your internet connection', 'B. Encrypts traffic between your device and the VPN server', 'C. Permanently blocks all ads', 'D. Gives admin access to remote systems'],
+                'options_ar'  => ['أ. يسرّع اتصالك بالإنترنت', 'ب. يشفر حركة البيانات بين جهازك وخادم VPN', 'ج. يمنع الإعلانات بشكل دائم', 'د. يمنح وصولاً إدارياً للأنظمة البعيدة'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['encrypt', 'tunnel', 'privacy', 'يشفر', 'تشفير', 'خصوصية'],
+                'explanation_en' => 'A VPN creates an encrypted tunnel for your traffic, protecting it from interception on untrusted networks like public Wi-Fi.',
+                'explanation_ar' => 'الـ VPN ينشئ نفقاً مشفراً لحركة بياناتك، يحميها من الاعتراض على الشبكات غير الموثوقة كشبكات Wi-Fi العامة.',
+            ],
+            'least-privilege' => [
+                'question_en' => 'Which principle states that users and systems should have only the minimum access they need?',
+                'question_ar' => 'أي مبدأ ينص على أن المستخدمين والأنظمة يجب أن يمتلكوا الحد الأدنى من الصلاحيات اللازمة فقط؟',
+                'options_en'  => ['A. Defense in Depth', 'B. Principle of Least Privilege', 'C. Zero Trust', 'D. Need to Share'],
+                'options_ar'  => ['أ. الدفاع المتعمق', 'ب. مبدأ الامتياز الأدنى', 'ج. الثقة الصفرية', 'د. مبدأ المشاركة'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['least privilege', 'minimum access', 'الامتياز الأدنى', 'الحد الأدنى'],
+                'explanation_en' => 'Least Privilege limits the damage a compromised account or system can do by ensuring it only has access to what it truly needs.',
+                'explanation_ar' => 'مبدأ الامتياز الأدنى يقلل الضرر الناجم عن اختراق حساب أو نظام بضمان أن له صلاحيات ما يحتاجه فعلاً فقط.',
+            ],
+            'incident-response' => [
+                'question_en' => 'What is the correct first step of an incident response plan?',
+                'question_ar' => 'ما الخطوة الأولى الصحيحة في خطة الاستجابة للحوادث؟',
+                'options_en'  => ['A. Eradication', 'B. Recovery', 'C. Preparation', 'D. Containment'],
+                'options_ar'  => ['أ. الاستئصال', 'ب. الاسترداد', 'ج. التحضير', 'د. الاحتواء'],
+                'correct'     => 'C',
+                'correct_ar'  => 'ج',
+                'acceptable'  => ['preparation', 'prepare', 'planning', 'التحضير', 'الاستعداد'],
+                'explanation_en' => 'The six NIST incident response phases are: Preparation → Identification → Containment → Eradication → Recovery → Lessons Learned. Preparation comes first.',
+                'explanation_ar' => 'مراحل الاستجابة للحوادث الستة وفق NIST: التحضير ← التعرف ← الاحتواء ← الاستئصال ← الاسترداد ← الدروس المستفادة. التحضير يأتي أولاً.',
+            ],
+            'zero-trust' => [
+                'question_en' => 'What is the core principle of Zero Trust security?',
+                'question_ar' => 'ما المبدأ الجوهري لنموذج الأمان Zero Trust؟',
+                'options_en'  => ['A. Trust everyone inside the network perimeter', 'B. Never trust, always verify — every request must be authenticated', 'C. Disable all firewalls to improve speed', 'D. Share credentials across teams for efficiency'],
+                'options_ar'  => ['أ. ثق بكل من هو داخل محيط الشبكة', 'ب. لا تثق أبداً، تحقق دائماً — كل طلب يجب مصادقته', 'ج. تعطيل جدران الحماية لتحسين السرعة', 'د. مشاركة بيانات الاعتماد عبر الفرق لزيادة الكفاءة'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['never trust', 'always verify', 'لا تثق', 'تحقق دائماً'],
+                'explanation_en' => 'Zero Trust assumes breach and requires continuous verification of every user and device, inside or outside the network perimeter.',
+                'explanation_ar' => 'Zero Trust يفترض أن الاختراق حادث ويتطلب التحقق المستمر من كل مستخدم وجهاز سواء كانوا داخل أو خارج الشبكة.',
+            ],
+            'password-policy' => [
+                'question_en' => 'Which password policy practice provides the MOST security benefit?',
+                'question_ar' => 'أي ممارسة في سياسة كلمات المرور توفر أكبر فائدة أمنية؟',
+                'options_en'  => ['A. Require changing passwords every 30 days', 'B. Use long passphrases (16+ characters) with no forced rotation', 'C. Allow reusing the last 3 passwords', 'D. Store passwords in a shared spreadsheet'],
+                'options_ar'  => ['أ. إلزام تغيير كلمات المرور كل 30 يوماً', 'ب. استخدام عبارات مرور طويلة (16+ حرف) دون تدوير قسري', 'ج. السماح بإعادة استخدام آخر 3 كلمات مرور', 'د. تخزين كلمات المرور في ملف مشترك'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['long', 'passphrase', '16', 'طويلة', 'عبارة مرور'],
+                'explanation_en' => 'Long passphrases are harder to crack than short complex passwords. Frequent forced rotation often leads to weaker, predictable passwords.',
+                'explanation_ar' => 'العبارات الطويلة أصعب في الاختراق من كلمات المرور القصيرة المعقدة. التدوير القسري المتكرر يؤدي غالباً لكلمات مرور أضعف وأكثر توقعاً.',
+            ],
+            'social-engineering' => [
+                'question_en' => 'A caller claims to be IT support and asks for your password to "fix an issue." This is an example of:',
+                'question_ar' => 'يدّعي متصل أنه دعم تقني ويطلب كلمة مرورك لـ "إصلاح مشكلة". هذا مثال على:',
+                'options_en'  => ['A. Brute force attack', 'B. Pretexting (a social engineering technique)', 'C. SQL Injection', 'D. Man-in-the-middle attack'],
+                'options_ar'  => ['أ. هجوم القوة الغاشمة', 'ب. التذرع (أسلوب من أساليب الهندسة الاجتماعية)', 'ج. SQL Injection', 'د. هجوم الوسيط'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['pretexting', 'social engineering', 'تذرع', 'هندسة اجتماعية'],
+                'explanation_en' => 'Pretexting is creating a fabricated scenario to manipulate someone into revealing information. Legitimate IT support never asks for passwords.',
+                'explanation_ar' => 'التذرع هو اختلاق سيناريو مزيف للتلاعب بشخص ما وإقناعه بالكشف عن معلومات. الدعم التقني الشرعي لا يطلب كلمات المرور أبداً.',
+            ],
+            'patch-management' => [
+                'question_en' => 'Why is timely patch management critical for security?',
+                'question_ar' => 'لماذا تُعدّ إدارة التحديثات والتصحيحات في الوقت المناسب أمراً حيوياً للأمن؟',
+                'options_en'  => ['A. Patches add new features users want', 'B. Unpatched systems expose known vulnerabilities that attackers actively exploit', 'C. Patching only improves performance, not security', 'D. Patches are optional and only for enterprise systems'],
+                'options_ar'  => ['أ. التحديثات تضيف ميزات يريدها المستخدمون', 'ب. الأنظمة غير المُحدَّثة تكشف ثغرات معروفة يستغلها المهاجمون بنشاط', 'ج. التحديثات تحسّن الأداء فقط لا الأمان', 'د. التحديثات اختيارية للأنظمة المؤسسية فقط'],
+                'correct'     => 'B',
+                'correct_ar'  => 'ب',
+                'acceptable'  => ['unpatched', 'vulnerabilities', 'exploit', 'ثغرات', 'غير محدّثة'],
+                'explanation_en' => 'Most breaches exploit known, already-patched vulnerabilities. Keeping systems updated closes those doors before attackers walk through them.',
+                'explanation_ar' => 'معظم الاختراقات تستغل ثغرات معروفة وتم تصحيحها بالفعل. إبقاء الأنظمة محدّثة يغلق تلك الأبواب قبل أن يلجها المهاجمون.',
+            ],
+            'encryption-types' => [
+                'question_en' => 'Which statement correctly describes the difference between symmetric and asymmetric encryption?',
+                'question_ar' => 'أي عبارة تصف الفرق بشكل صحيح بين التشفير المتماثل وغير المتماثل؟',
+                'options_en'  => ['A. Symmetric uses one shared key; asymmetric uses a public/private key pair', 'B. Symmetric is slower than asymmetric for all use cases', 'C. Asymmetric uses one shared key; symmetric uses a key pair', 'D. Both use the same algorithm but different key sizes'],
+                'options_ar'  => ['أ. المتماثل يستخدم مفتاحاً مشتركاً واحداً؛ غير المتماثل يستخدم زوج مفاتيح عام/خاص', 'ب. المتماثل أبطأ من غير المتماثل في جميع الحالات', 'ج. غير المتماثل يستخدم مفتاحاً مشتركاً؛ المتماثل يستخدم زوج مفاتيح', 'د. كلاهما يستخدم نفس الخوارزمية بأحجام مفاتيح مختلفة'],
+                'correct'     => 'A',
+                'correct_ar'  => 'أ',
+                'acceptable'  => ['symmetric', 'shared key', 'public', 'private', 'متماثل', 'مفتاح مشترك', 'عام', 'خاص'],
+                'explanation_en' => 'Symmetric encryption (AES) uses one shared secret key — fast but key distribution is hard. Asymmetric (RSA) uses a public key to encrypt and a private key to decrypt — great for key exchange.',
+                'explanation_ar' => 'التشفير المتماثل (AES) يستخدم مفتاحاً سرياً مشتركاً — سريع لكن توزيع المفتاح صعب. غير المتماثل (RSA) يستخدم مفتاحاً عاماً للتشفير وخاصاً لفك التشفير — ممتاز لتبادل المفاتيح.',
             ],
         ];
     }
@@ -1216,16 +1412,24 @@ Tip: combine related questions into one message to get more out of your daily qu
 
     private function studentContext(User $user, array $history, string $message): string
     {
-        $name = trim($user->name) !== '' ? $user->name : 'Student';
+        $name  = trim($user->name) !== '' ? $user->name : 'Student';
         $level = $this->studentLevel($user, $history, $message);
-        $chatMemory = $this->chatMemoryContext($history, $message);
-        $recent = $this->recentInteractionContext($user);
+
+        // Pull cross-agent context from the session (set by maybePersistLevel).
+        $sessionLevel = null;
+        if (function_exists('session')) {
+            $sessionLevel = session('cyber_context.level');
+        }
+
+        $effectiveLevel = $level ?? $sessionLevel;
+        $chatMemory     = $this->chatMemoryContext($history, $message);
+        $recent         = $this->recentInteractionContext($user);
 
         return "Student profile:\n"
             ."- Name: {$name}\n"
-            .'- Current level: '.($level ?? 'unknown; ask only when needed for a plan')."\n"
-            ."- Personalization: address the student by name once near the start of each reply when natural. Do not overuse the name in every paragraph.\n"
-            ."- Continuity: use the current chat history and recent interaction summary to avoid repeating questions and to maintain context.\n"
+            .'- Current level: '.($effectiveLevel ?? 'unknown; ask only when needed for a plan')."\n"
+            ."- Personalization: address the student by name once near the start of each reply when natural. Do not overuse the name.\n"
+            ."- Continuity: use the current chat history and recent interaction summary to avoid repeating questions and maintain context across all agent tabs.\n"
             ."Current chat memory:\n{$chatMemory}\n"
             ."Recent interaction summary:\n{$recent}";
     }
@@ -1545,32 +1749,88 @@ Tip: combine related questions into one message to get more out of your daily qu
 
     private function studyPlanFallbackResponse(string $message, string $level): string
     {
-        if ($this->containsArabic($message)) {
-            return "**خطة تعلم الأمن السيبراني - مستوى {$level}**\n\n"
-                ."**الأسبوع 1: الأساسيات**\n"
-                ."- راجع مفاهيم الشبكات: IP, DNS, HTTP, TCP/UDP.\n"
-                ."- خصص 30-45 دقيقة يومياً للمذاكرة والتلخيص.\n\n"
-                ."**الأسبوع 2: Linux والأدوات**\n"
-                ."- تدرب على أوامر Linux الأساسية وإدارة الملفات والصلاحيات.\n"
-                ."- جرّب مختبرات قانونية فقط مثل TryHackMe أو Hack The Box Academy.\n\n"
-                ."**الأسبوع 3: أمن الويب**\n"
-                ."- ابدأ بـ OWASP Top 10 وافهم الثغرات على مستوى المفهوم والدفاع.\n"
-                ."- طبّق في Labs آمنة، بدون أي أهداف حقيقية.\n\n"
-                ."**الخطوة التالية**\n"
-                .'خلّنا نبدأ بدرس الشبكات أو أرسل لي "لينكات" وأعطيك مصادر مناسبة.';
-        }
+        $arabic = $this->containsArabic($message);
 
-        return "**Cybersecurity learning plan - {$level} level**\n\n"
-            ."**Week 1: Foundations**\n"
-            ."- Review networking basics: IP, DNS, HTTP, TCP/UDP.\n"
-            ."- Study and summarize for 30-45 minutes daily.\n\n"
-            ."**Week 2: Linux and tools**\n"
-            ."- Practice basic Linux commands, files, and permissions.\n"
-            ."- Use legal labs only, such as TryHackMe or Hack The Box Academy.\n\n"
-            ."**Week 3: Web security**\n"
-            ."- Start with OWASP Top 10 and focus on defensive understanding.\n"
-            ."- Practice only in safe labs, never on real targets.\n\n"
-            .'Next step: start with networking basics, or ask for links and I will share resources.';
+        return match ($level) {
+            'Intermediate' => $arabic
+                ? "**خطة تعلم الأمن السيبراني — مستوى Intermediate**\n\n"
+                    ."**Module 1 (أسبوع 1–2): أمن تطبيقات الويب**\n"
+                    ."- OWASP Top 10 بعمق: XSS، SQLi، CSRF، IDOR، SSRF.\n"
+                    ."- تدرّب على PortSwigger Web Security Academy (Labs مجانية).\n\n"
+                    ."**Module 2 (أسبوع 3–4): أمن الشبكات والأدوات**\n"
+                    ."- تحليل حزم الشبكة بـ Wireshark، أنواع جدران الحماية، IDS/IPS.\n"
+                    ."- تدرّب على TryHackMe: Jr Penetration Tester Path.\n\n"
+                    ."**Module 3 (أسبوع 5–6): التشفير والشهادات**\n"
+                    ."- التشفير المتماثل وغير المتماثل، TLS، PKI، هاش وكيف تكشف التلاعب.\n"
+                    ."- اقرأ: Cryptography I - Coursera (أول فصلين مجانيان).\n\n"
+                    ."**مصادر الأولوية:** PortSwigger Academy، TryHackMe، OWASP Testing Guide.\n\n"
+                    .'خلّنا نبدأ بموضوع محدد: أمن الويب، الشبكات، أم التشفير؟'
+                : "**Cybersecurity study plan — Intermediate level**\n\n"
+                    ."**Module 1 (Week 1–2): Web application security**\n"
+                    ."- OWASP Top 10 in depth: XSS, SQLi, CSRF, IDOR, SSRF.\n"
+                    ."- Practice on PortSwigger Web Security Academy (free labs).\n\n"
+                    ."**Module 2 (Week 3–4): Network security and tools**\n"
+                    ."- Wireshark packet analysis, firewall types, IDS/IPS concepts.\n"
+                    ."- TryHackMe: Jr Penetration Tester path.\n\n"
+                    ."**Module 3 (Week 5–6): Cryptography and certificates**\n"
+                    ."- Symmetric vs asymmetric encryption, TLS, PKI, hashing and tamper detection.\n"
+                    ."- Read: Coursera Cryptography I (first two weeks are free).\n\n"
+                    ."**Priority resources:** PortSwigger Academy, TryHackMe, OWASP Testing Guide.\n\n"
+                    .'Where do you want to start: web security, networking, or cryptography?',
+
+            'Expert' => $arabic
+                ? "**خطة تعلم الأمن السيبراني — مستوى Expert**\n\n"
+                    ."**Module 1 (أسبوع 1–2): صيد التهديدات والكشف المتقدم**\n"
+                    ."- إطار MITRE ATT&CK، تحليل SIEM وSplunk، تحليل الـ Logs، بناء Detection Rules.\n"
+                    ."- تدرّب على Hack The Box Pro Labs (RastaLabs أو Offshore).\n\n"
+                    ."**Module 2 (أسبوع 3–4): أمن السحابة والحاويات**\n"
+                    ."- AWS/Azure IAM Misconfigurations، تصليب الحاويات Docker/Kubernetes، أمان Serverless.\n"
+                    ."- أدوات: Prowler، ScoutSuite، Trivy.\n\n"
+                    ."**Module 3 (أسبوع 5–6): البنية الأمنية الآمنة وDevSecOps**\n"
+                    ."- Threat Modeling (STRIDE/PASTA)، SAST/DAST في CI/CD، تأمين Secrets Management.\n"
+                    ."- اقرأ: NIST SP 800-53، CIS Benchmarks لبيئتك.\n\n"
+                    ."**مصادر الأولوية:** Hack The Box Pro Labs، SANS courses، OSCP (للـ Red Team).\n\n"
+                    .'اختر اتجاهك: صيد التهديدات، أمن السحابة، أم DevSecOps؟'
+                : "**Cybersecurity study plan — Expert level**\n\n"
+                    ."**Module 1 (Week 1–2): Threat hunting and advanced detection**\n"
+                    ."- MITRE ATT&CK framework, SIEM/Splunk log analysis, building detection rules.\n"
+                    ."- Practice on Hack The Box Pro Labs (RastaLabs or Offshore).\n\n"
+                    ."**Module 2 (Week 3–4): Cloud security and containers**\n"
+                    ."- AWS/Azure IAM misconfigurations, Docker/Kubernetes hardening, Serverless security.\n"
+                    ."- Tools: Prowler, ScoutSuite, Trivy.\n\n"
+                    ."**Module 3 (Week 5–6): Secure architecture and DevSecOps**\n"
+                    ."- Threat modeling (STRIDE/PASTA), SAST/DAST in CI/CD pipelines, Secrets Management.\n"
+                    ."- Read: NIST SP 800-53, CIS Benchmarks for your environment.\n\n"
+                    ."**Priority resources:** Hack The Box Pro Labs, SANS courses, OSCP prep.\n\n"
+                    .'Pick your focus: threat hunting, cloud security, or DevSecOps?',
+
+            // Beginner (default)
+            default => $arabic
+                ? "**خطة تعلم الأمن السيبراني — مستوى Beginner**\n\n"
+                    ."**Module 1 (أسبوع 1–2): أساسيات الشبكات**\n"
+                    ."- IP، DNS، HTTP/HTTPS، TCP/UDP، المنافذ، نموذج OSI.\n"
+                    ."- خصص 30-45 دقيقة يومياً. المصدر: TryHackMe Pre-Security Path.\n\n"
+                    ."**Module 2 (أسبوع 3–4): أساسيات Linux**\n"
+                    ."- أوامر CLI الأساسية، الملفات والمجلدات، الصلاحيات، إدارة المستخدمين.\n"
+                    ."- تدرّب داخل: TryHackMe Linux Fundamentals (3 parts).\n\n"
+                    ."**Module 3 (أسبوع 5–6): مفاهيم أمن الويب**\n"
+                    ."- OWASP Top 10 بشكل مبسط: فهم كل ثغرة وكيف تُكتشف وكيف تتحمى.\n"
+                    ."- تدرّب على: PortSwigger Web Security Academy (مستوى Apprentice).\n\n"
+                    ."**مصادر الأولوية:** TryHackMe، Cybrary، Google Cybersecurity Certificate.\n\n"
+                    .'نبدأ بأي موضوع: الشبكات، Linux، أم أمن الويب؟'
+                : "**Cybersecurity study plan — Beginner level**\n\n"
+                    ."**Module 1 (Week 1–2): Networking fundamentals**\n"
+                    ."- IP addressing, DNS, HTTP/HTTPS, TCP/UDP, ports, and the OSI model.\n"
+                    ."- Dedicate 30-45 minutes daily. Resource: TryHackMe Pre-Security Path.\n\n"
+                    ."**Module 2 (Week 3–4): Linux basics**\n"
+                    ."- Core CLI commands, directories, file permissions, and user management.\n"
+                    ."- Practice inside: TryHackMe Linux Fundamentals (3 parts).\n\n"
+                    ."**Module 3 (Week 5–6): Web security concepts**\n"
+                    ."- OWASP Top 10 simplified: understand each vulnerability, detection, and defense.\n"
+                    ."- Practice on: PortSwigger Web Security Academy (Apprentice tier, free).\n\n"
+                    ."**Priority resources:** TryHackMe, Cybrary, Google Cybersecurity Certificate.\n\n"
+                    .'Where do you want to start: networking, Linux, or web security?',
+        };
     }
 
     private function navigationFallbackResponse(string $message, ?Lesson $lesson): string
@@ -1704,5 +1964,259 @@ Tip: combine related questions into one message to get more out of your daily qu
         }
 
         return "Here are the approved videos for this lesson:\n\n{$lines}\n\nStart with the first video, note the core idea, then return to the quiz.";
+    }
+
+    // -------------------------------------------------------------------------
+    // Level persistence
+    // -------------------------------------------------------------------------
+
+    /**
+     * Persist a newly detected learning level to the user record and the session
+     * so every subsequent agent can use it without re-asking.
+     */
+    private function maybePersistLevel(User $user, string $message, array $history): void
+    {
+        // Already stored — nothing to do.
+        if ($user->learning_level && $this->detectLevel((string) $user->learning_level)) {
+            return;
+        }
+
+        $sources = array_merge([$message], array_column($history, 'content'));
+
+        foreach ($sources as $source) {
+            $level = $this->detectLevel((string) $source);
+
+            if ($level) {
+                // Persist to the database for cross-session memory.
+                $user->update(['learning_level' => $level]);
+
+                // Also store in the current session for immediate cross-agent availability.
+                if (app()->bound('session.store') || function_exists('session')) {
+                    session(['cyber_context.level' => $level]);
+                }
+
+                return;
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Real-time streaming
+    // -------------------------------------------------------------------------
+
+    /**
+     * Streaming counterpart to respond().
+     * Calls $onChunk for every token/chunk as it arrives, then calls $onDone once
+     * with the final metadata. Uses Groq's native SSE stream when available;
+     * falls back to OpenAI (non-streaming) and then to the hardcoded fallback,
+     * both of which are chunked and emitted with the same callback signature.
+     */
+    public function respondStreaming(
+        User $user,
+        ?Lesson $lesson,
+        string $message,
+        string $agentType,
+        string $version,
+        array $history,
+        callable $onChunk,
+        callable $onDone,
+    ): void {
+        $agent   = self::AGENTS[$agentType] ?? self::AGENTS['single_tutor'];
+        $started = microtime(true);
+        $tokens  = 0;
+        $meta    = [];
+        $cacheHit     = false;
+        $messageHash  = null;
+        $prebuiltContent = null; // non-null means we will chunk it manually
+        $streamedContent = '';   // accumulated from real Groq streaming
+
+        // ── Pre-flight checks (same order as respond()) ──────────────────────
+        if (! $this->withinRateLimit($user)) {
+            $prebuiltContent = $this->rateLimitResponse($message);
+        } elseif (! $this->withinDailyLimit($user)) {
+            $prebuiltContent = $this->dailyLimitResponse($message, $user);
+        } elseif ($this->isUnsafeRequest($message)) {
+            $prebuiltContent = $this->safetyResponse($message);
+        } elseif ($deterministicResponse = $this->deterministicResponse($message, $agentType, $history, $lesson, $user)) {
+            $prebuiltContent = $deterministicResponse;
+        } elseif ($scopeResponse = $this->scopeResponse($message, $agentType)) {
+            $prebuiltContent = $scopeResponse['message'];
+            $meta            = $scopeResponse['meta'];
+        } else {
+            // ── AI path ──────────────────────────────────────────────────────
+            $messageHash    = $this->messageHash($message, $agentType, $lesson?->id);
+            $cachedResponse = $this->findCachedResponse($messageHash);
+
+            if ($cachedResponse !== null) {
+                $prebuiltContent = $cachedResponse;
+                $cacheHit        = true;
+            } else {
+                $messages   = $this->messages($user, $agent['prompt_key'], $lesson, $history, $message);
+                $groqKey    = $this->groqApiKey($version);
+                $groqSuccess = false;
+
+                if ($groqKey) {
+                    $groqResult = $this->streamFromGroq(
+                        $messages,
+                        $groqKey,
+                        function (string $token) use ($onChunk, &$streamedContent): void {
+                            $streamedContent .= $token;
+                            $onChunk($token);
+                        }
+                    );
+
+                    if ($groqResult['ok']) {
+                        $groqSuccess = true;
+                        $tokens      = $groqResult['tokens'];
+                    } else {
+                        $this->logProviderFailure('Groq streaming failed; trying OpenAI.', $groqResult);
+                    }
+                }
+
+                if (! $groqSuccess) {
+                    if (config('services.openai.api_key')) {
+                        $openai = $this->callOpenAI($messages);
+
+                        if ($openai['ok']) {
+                            $prebuiltContent = $openai['content'];
+                            $tokens          = $openai['tokens'];
+                        } else {
+                            $this->logProviderFailure('OpenAI failed; using fallback response.', $openai);
+                        }
+                    }
+
+                    if ($prebuiltContent === null) {
+                        $prebuiltContent = $this->fallbackResponse($message, $agentType, $lesson, $user);
+                    }
+                }
+            }
+        }
+
+        // ── Personalize & emit pre-built content in small chunks ─────────────
+        if ($prebuiltContent !== null) {
+            $prebuiltContent = $this->personalizeResponse($prebuiltContent, $message, $user);
+
+            foreach (mb_str_split($prebuiltContent, 6) as $chunk) {
+                $onChunk($chunk);
+            }
+        }
+
+        // ── Determine what to log ─────────────────────────────────────────────
+        $rawContent  = $prebuiltContent ?? $streamedContent;
+        $finalContent = $rawContent;
+
+        // ── Persist level if detected in this turn ────────────────────────────
+        $this->maybePersistLevel($user, $message, $history);
+
+        $interaction = AiInteraction::create([
+            'user_id'          => $user->id,
+            'lesson_id'        => $lesson?->id,
+            'platform_version' => $version,
+            'agent_type'       => $agentType,
+            'message_hash'     => $messageHash,
+            'prompt'           => $message,
+            'response'         => $rawContent,
+            'tokens_used'      => $tokens,
+            'latency_ms'       => (int) ((microtime(true) - $started) * 1000),
+            'cache_hit'        => $cacheHit,
+        ]);
+
+        $onDone([
+            'message'        => $finalContent,
+            'agent'          => $agent,
+            'interaction_id' => $interaction->id,
+            'meta'           => $meta,
+        ]);
+    }
+
+    /**
+     * Connect to Groq's chat-completions endpoint with stream=true and call
+     * $onToken for every text token received over the SSE connection.
+     *
+     * Returns ['ok' => bool, 'provider' => string, 'tokens' => int, 'error' => string|null].
+     *
+     * @param  array<int, array{role: string, content: string}>  $messages
+     * @return array{ok: bool, provider: string, tokens: int, content: string, status: int|null, error: string|null, body: string|null}
+     */
+    private function streamFromGroq(array $messages, string $apiKey, callable $onToken): array
+    {
+        $fullContent = '';
+        $totalTokens = 0;
+
+        try {
+            $client   = new GuzzleClient(['timeout' => 60]);
+            $response = $client->post('https://api.groq.com/openai/v1/chat/completions', [
+                'stream'  => true,
+                'headers' => [
+                    'Authorization' => 'Bearer '.$apiKey,
+                    'Content-Type'  => 'application/json',
+                ],
+                'json' => [
+                    'model'       => config('services.groq.model', 'llama-3.3-70b-versatile'),
+                    'messages'    => $messages,
+                    'temperature' => 0.7,
+                    'max_tokens'  => 1200,
+                    'top_p'       => 0.9,
+                    'stream'      => true,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return $this->failedProviderResult('groq-stream', null, $e->getMessage());
+        }
+
+        $body   = $response->getBody();
+        $buffer = '';
+
+        while (! $body->eof()) {
+            $chunk  = $body->read(512);
+            $buffer .= $chunk;
+
+            // Process every complete SSE line.
+            while (($pos = strpos($buffer, "\n")) !== false) {
+                $line   = trim(substr($buffer, 0, $pos));
+                $buffer = substr($buffer, $pos + 1);
+
+                if (! str_starts_with($line, 'data: ')) {
+                    continue;
+                }
+
+                $json = substr($line, 6);
+
+                if ($json === '[DONE]') {
+                    break 2;
+                }
+
+                $parsed = json_decode($json, true);
+
+                if (! is_array($parsed)) {
+                    continue;
+                }
+
+                $token = (string) data_get($parsed, 'choices.0.delta.content', '');
+
+                if ($token !== '') {
+                    $fullContent .= $token;
+                    $onToken($token);
+                }
+
+                if (isset($parsed['usage']['total_tokens'])) {
+                    $totalTokens = (int) $parsed['usage']['total_tokens'];
+                }
+            }
+        }
+
+        if ($fullContent === '') {
+            return $this->failedProviderResult('groq-stream', $response->getStatusCode(), 'Groq stream returned empty content.');
+        }
+
+        return [
+            'ok'       => true,
+            'provider' => 'groq-stream',
+            'content'  => $fullContent,
+            'tokens'   => $totalTokens,
+            'status'   => $response->getStatusCode(),
+            'error'    => null,
+            'body'     => null,
+        ];
     }
 }

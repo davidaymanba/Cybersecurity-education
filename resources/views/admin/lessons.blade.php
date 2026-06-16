@@ -9,6 +9,7 @@
             <p class="mt-2 max-w-2xl text-sm text-slate-300">Create, edit, publish, reorder, and delete lessons from one responsive workspace.</p>
         </div>
         <a href="{{ route('admin.quizzes') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">Manage quizzes</a>
+        <a href="{{ route('admin.videos') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">Manage videos</a>
     </div>
 
     @if($errors->any())

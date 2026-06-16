@@ -5,15 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Lesson;
 use App\Services\AiAgentService;
+use App\Traits\DetectsArabic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AiChatController extends Controller
 {
+    use DetectsArabic;
+
     public function __invoke(Request $request, AiAgentService $agents): JsonResponse
     {
-        $data = $this->validatedChatData($request);
+        $data   = $this->validatedChatData($request);
         $lesson = isset($data['lesson_id']) ? Lesson::find($data['lesson_id']) : null;
 
         return response()->json($agents->respond(
@@ -26,11 +30,16 @@ class AiChatController extends Controller
         ));
     }
 
+    /**
+     * Real-time streaming endpoint.
+     * Uses Groq's native token-by-token SSE stream; falls back to OpenAI or hardcoded
+     * fallbacks, which are then chunked and emitted at the same event-stream format.
+     */
     public function stream(Request $request, AiAgentService $agents): StreamedResponse
     {
-        $data = $this->validatedChatData($request);
+        $data   = $this->validatedChatData($request);
         $lesson = isset($data['lesson_id']) ? Lesson::find($data['lesson_id']) : null;
-        $user = $request->user();
+        $user   = $request->user();
 
         return response()->stream(function () use ($agents, $data, $lesson, $user): void {
             $send = function (string $event, array $payload): void {
@@ -47,25 +56,22 @@ class AiChatController extends Controller
             try {
                 $send('start', ['ok' => true]);
 
-                $result = $agents->respond(
+                $agents->respondStreaming(
                     $user,
                     $lesson,
                     $data['message'],
                     $data['agent_type'],
                     $data['platform_version'],
-                    $data['history'] ?? []
+                    $data['history'] ?? [],
+                    // onChunk: called for every token/chunk from Groq or chunked fallback
+                    function (string $token) use ($send): void {
+                        $send('chunk', ['text' => $token]);
+                    },
+                    // onDone: called once with final metadata after all chunks
+                    function (array $result) use ($send): void {
+                        $send('done', $result);
+                    },
                 );
-
-                foreach ($this->streamChunks($result['message']) as $chunk) {
-                    $send('chunk', ['text' => $chunk]);
-                    usleep(15000);
-                }
-
-                $send('done', [
-                    'message' => $result['message'],
-                    'interaction_id' => $result['interaction_id'],
-                    'meta' => $result['meta'] ?? [],
-                ]);
             } catch (\Throwable $exception) {
                 report($exception);
 
@@ -76,43 +82,62 @@ class AiChatController extends Controller
                 ]);
             }
         }, 200, [
-            'Cache-Control' => 'no-cache, no-transform',
-            'Content-Type' => 'text/event-stream',
+            'Cache-Control'    => 'no-cache, no-transform',
+            'Content-Type'     => 'text/event-stream',
             'X-Accel-Buffering' => 'no',
         ]);
     }
 
     /**
+     * Validate and return sanitized chat request data.
+     * History content is stripped of HTML and control characters to prevent prompt injection.
+     *
      * @return array<string, mixed>
      */
     private function validatedChatData(Request $request): array
     {
         $data = $request->validate([
-            'message' => ['required', 'string', 'max:2000'],
-            'history' => ['nullable', 'array', 'max:20'],
-            'history.*.role' => ['required_with:history', 'in:user,assistant'],
+            'message'          => ['required', 'string', 'max:2000'],
+            'history'          => ['nullable', 'array', 'max:20'],
+            'history.*.role'   => ['required_with:history', 'in:user,assistant'],
             'history.*.content' => ['required_with:history', 'string', 'max:4000'],
-            'lesson_id' => ['nullable', 'exists:lessons,id'],
-            'agent_type' => ['nullable', 'in:single_tutor,navigation,explanation,video'],
+            'lesson_id'        => ['nullable', 'exists:lessons,id'],
+            'agent_type'       => ['nullable', 'in:single_tutor,navigation,explanation,video'],
             'platform_version' => ['nullable', 'in:single,multi'],
         ]);
 
-        $data['agent_type'] ??= 'single_tutor';
+        $data['agent_type']       ??= 'single_tutor';
         $data['platform_version'] ??= 'single';
+
+        // Sanitize history: strip HTML and control characters to prevent prompt-injection attacks.
+        if (!empty($data['history'])) {
+            $data['history'] = $this->sanitizeHistory($data['history']);
+        }
 
         return $data;
     }
 
     /**
-     * @return array<int, string>
+     * Strip HTML tags and control characters from each history turn.
+     * Limits content length to prevent context overflow attacks.
+     *
+     * @param  array<int, array{role: string, content: string}>  $history
+     * @return array<int, array{role: string, content: string}>
      */
-    private function streamChunks(string $message): array
+    private function sanitizeHistory(array $history): array
     {
-        return mb_str_split($message, 80);
-    }
+        return collect($history)
+            ->map(function (array $turn): array {
+                $content = strip_tags((string) ($turn['content'] ?? ''));
+                // Remove ASCII control characters except tab and newlines
+                $content = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/', '', $content);
+                $content = Str::limit(trim($content), 3000);
 
-    private function containsArabic(string $message): bool
-    {
-        return preg_match('/[\x{0600}-\x{06FF}]/u', $message) === 1;
+                return ['role' => $turn['role'], 'content' => $content];
+            })
+            ->filter(fn (array $turn): bool => $turn['content'] !== '')
+            ->values()
+            ->all();
     }
 }
+

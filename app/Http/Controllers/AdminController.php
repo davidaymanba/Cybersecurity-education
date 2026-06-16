@@ -8,6 +8,7 @@ use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\Section;
 use App\Models\User;
+use App\Models\VideoResource;
 use App\Services\AnalyticsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -103,15 +104,16 @@ class AdminController extends Controller
             'explanation' => ['nullable', 'max:1000'],
         ]);
 
-        $quiz = Quiz::firstOrCreate(
+        // Use updateOrCreate to avoid creating then immediately updating.
+        $quiz = Quiz::updateOrCreate(
             ['lesson_id' => $data['lesson_id']],
-            ['title' => $data['title'], 'timer_seconds' => $data['timer_seconds'], 'passing_score' => $data['passing_score']]
+            [
+                'title'          => $data['title'],
+                'timer_seconds'  => $data['timer_seconds'],
+                'passing_score'  => $data['passing_score'],
+            ]
         );
-        $quiz->update([
-            'title' => $data['title'],
-            'timer_seconds' => $data['timer_seconds'],
-            'passing_score' => $data['passing_score'],
-        ]);
+
         $this->createQuestionWithAnswers($quiz, $data);
 
         return back()->with('status', 'Quiz question saved.');
@@ -205,5 +207,59 @@ class AdminController extends Controller
         }
 
         return $question;
+    }
+
+    // -------------------------------------------------------------------------
+    // Video resource management
+    // -------------------------------------------------------------------------
+
+    public function videos(): \Illuminate\View\View
+    {
+        return view('admin.videos', [
+            'videos'  => VideoResource::with('lesson')->latest()->paginate(15),
+            'lessons' => Lesson::orderBy('title')->get(['id', 'title']),
+        ]);
+    }
+
+    public function storeVideo(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'lesson_id'     => ['required', 'exists:lessons,id'],
+            'title'         => ['required', 'max:200'],
+            'youtube_id'    => ['required', 'regex:/^[a-zA-Z0-9_\-]{6,20}$/', 'max:20'],
+            'channel_name'  => ['required', 'max:120'],
+            'description'   => ['nullable', 'max:1000'],
+            'approved'      => ['nullable', 'boolean'],
+        ]);
+
+        $data['approved'] = $request->boolean('approved', true);
+
+        VideoResource::create($data);
+
+        return back()->with('status', 'Video added.');
+    }
+
+    public function updateVideo(Request $request, VideoResource $video): RedirectResponse
+    {
+        $data = $request->validate([
+            'lesson_id'    => ['required', 'exists:lessons,id'],
+            'title'        => ['required', 'max:200'],
+            'youtube_id'   => ['required', 'regex:/^[a-zA-Z0-9_\-]{6,20}$/', 'max:20'],
+            'channel_name' => ['required', 'max:120'],
+            'description'  => ['nullable', 'max:1000'],
+            'approved'     => ['nullable', 'boolean'],
+        ]);
+
+        $data['approved'] = $request->boolean('approved');
+        $video->update($data);
+
+        return back()->with('status', 'Video updated.');
+    }
+
+    public function deleteVideo(VideoResource $video): RedirectResponse
+    {
+        $video->delete();
+
+        return back()->with('status', 'Video deleted.');
     }
 }

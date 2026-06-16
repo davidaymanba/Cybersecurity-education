@@ -2,45 +2,58 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Services\AiAgentService;
 use App\Services\TextToSpeechService;
-use App\Models\User;
+use App\Traits\DetectsArabic;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class VoiceController extends Controller
 {
-    public function show()
+    use DetectsArabic;
+
+    public function show(): View
     {
         return view('voice');
     }
 
-    public function respond(Request $request, AiAgentService $ai)
+    /**
+     * Voice AI endpoint — requires authenticated user, no anonymous fallback.
+     */
+    public function respond(Request $request, AiAgentService $ai): JsonResponse
     {
         $data = $request->validate([
-            'text' => 'required|string',
+            'text' => ['required', 'string', 'max:2000'],
         ]);
 
-        $user = $request->user() ?? User::first();
+        $user = $request->user();
 
-        $result = $ai->respond($user, null, $data['text'], 'single_tutor', 'web');
+        // Guard: authentication is required — never fall back to another user's account
+        abort_unless($user !== null, 401, 'Authentication required.');
+
+        $result = $ai->respond($user, null, $data['text'], 'single_tutor', 'single');
 
         return response()->json($result);
     }
 
-    public function tts(Request $request, TextToSpeechService $tts)
+    /**
+     * TTS endpoint — requires POST (no GET in production).
+     */
+    public function tts(Request $request, TextToSpeechService $tts): JsonResponse
     {
         $data = $request->validate([
-            'text' => 'required|string',
-            'voice' => 'nullable|string',
-            'format' => 'nullable|string|in:mp3,aiff',
+            'text'   => ['required', 'string', 'max:3000'],
+            'voice'  => ['nullable', 'string', 'max:40'],
+            'format' => ['nullable', 'string', 'in:mp3,aiff'],
         ]);
 
-        $format = $data['format'] ?? 'mp3';
         try {
-            $out = $tts->generate($data['text'], $data['voice'] ?? null, $format);
-            return response()->json(['ok' => true, 'url' => $out['url'], 'path' => $out['path']]);
+            $out = $tts->generate($data['text'], $data['voice'] ?? null, $data['format'] ?? 'mp3');
+
+            return response()->json(['ok' => true, 'url' => $out['url']]);
         } catch (\Throwable $e) {
-            return response()->json(['ok' => false, 'error' => $e->getMessage()], 500);
+            return response()->json(['ok' => false, 'error' => 'TTS generation failed.'], 500);
         }
     }
 }

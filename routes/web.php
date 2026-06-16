@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AiChatController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\ProgressController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Middleware\SetLocale;
@@ -42,6 +43,15 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::post('/app-api/ai/chat', AiChatController::class)->middleware('throttle:20,1')->name('api.ai.chat');
         Route::post('/app-api/ai/chat/stream', [AiChatController::class, 'stream'])->middleware('throttle:20,1')->name('api.ai.chat.stream');
         Route::post('/app-api/progress', ProgressController::class)->name('api.progress');
+
+        // Bookmarks
+        Route::post('/bookmarks/{lesson}', [BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
+        Route::get('/bookmarks', [BookmarkController::class, 'index'])->name('bookmarks.index');
+
+        // Voice assistant (auth required — no anonymous use)
+        Route::get('/voice', [VoiceController::class, 'show'])->name('voice');
+        Route::post('/voice/ai', [VoiceController::class, 'respond'])->middleware('throttle:20,1')->name('voice.respond');
+        Route::post('/voice/tts', [VoiceController::class, 'tts'])->middleware('throttle:10,1')->name('voice.tts');
     });
 
     Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
@@ -58,14 +68,13 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::post('/quizzes/{quiz}/questions', [AdminController::class, 'storeQuestion'])->name('questions.store');
         Route::put('/questions/{question}', [AdminController::class, 'updateQuestion'])->name('questions.update');
         Route::delete('/questions/{question}', [AdminController::class, 'deleteQuestion'])->name('questions.delete');
+        // Video management
+        Route::get('/videos', [AdminController::class, 'videos'])->name('videos');
+        Route::post('/videos', [AdminController::class, 'storeVideo'])->name('videos.store');
+        Route::put('/videos/{video}', [AdminController::class, 'updateVideo'])->name('videos.update');
+        Route::delete('/videos/{video}', [AdminController::class, 'deleteVideo'])->name('videos.delete');
         Route::get('/app-api/analytics', AnalyticsController::class)->name('api.analytics');
     });
-
-    // Simple voice assistant UI and API (client-side STT/TTS PoC)
-    Route::get('/voice', [VoiceController::class, 'show'])->name('voice');
-    Route::post('/voice/ai', [VoiceController::class, 'respond'])->name('voice.respond');
-    // Allow GET for quick browser testing; prefer POST in production.
-    Route::match(['get', 'post'], '/voice/tts', [VoiceController::class, 'tts'])->name('voice.tts');
 
     // Language switcher (stores locale in session)
     Route::get('lang/{lang}', function ($lang) {

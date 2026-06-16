@@ -39,6 +39,11 @@ class User extends Authenticatable
         return $this->hasMany(AiInteraction::class);
     }
 
+    public function bookmarks(): HasMany
+    {
+        return $this->hasMany(\App\Models\Bookmark::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role?->name === 'admin';

@@ -26,6 +26,18 @@
                 <p class="mt-2 text-slate-300">{{ $lesson->summary }}</p>
             </div>
             <a href="{{ route('lessons.show', ['version' => $version === 'single' ? 'multi' : 'single', 'lesson' => $lesson]) }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold">Switch mode</a>
+            {{-- Bookmark toggle --}}
+            <button id="bookmark-btn"
+                    data-url="{{ route('bookmarks.toggle', $lesson) }}"
+                    class="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold transition hover:border-cyan-300/60 hover:text-cyan-200"
+                    aria-label="Bookmark this lesson">
+                <svg id="bookmark-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                     fill="none" stroke="currentColor" stroke-width="1.8"
+                     class="h-4 w-4 transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3h14a1 1 0 0 1 1 1v17l-8-4-8 4V4a1 1 0 0 1 1-1z"/>
+                </svg>
+                <span id="bookmark-label">Bookmark</span>
+            </button>
         </div>
         <div class="prose prose-invert max-w-none prose-pre:bg-slate-950">{!! $lesson->content !!}</div>
         @if($lesson->code_examples)
@@ -100,5 +112,39 @@ window.cyberLesson = {
     userName: @json(auth()->user()?->name),
     userLevel: @json(auth()->user()?->learning_level),
 };
+</script>
+<script>
+(function () {
+    const btn   = document.getElementById('bookmark-btn');
+    const icon  = document.getElementById('bookmark-icon');
+    const label = document.getElementById('bookmark-label');
+
+    if (!btn) return;
+
+    function setBookmarked(active) {
+        if (active) {
+            icon.style.fill = 'currentColor';
+            label.textContent = 'Bookmarked';
+            btn.classList.add('text-cyan-300');
+        } else {
+            icon.style.fill = 'none';
+            label.textContent = 'Bookmark';
+            btn.classList.remove('text-cyan-300');
+        }
+    }
+
+    btn.addEventListener('click', function () {
+        fetch(btn.dataset.url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+        })
+        .then(r => r.json())
+        .then(data => setBookmarked(data.bookmarked))
+        .catch(() => {});
+    });
+}());
 </script>
 @endsection
