@@ -17,6 +17,8 @@ class AiAgentService
 
     private const AI_RATE_LIMIT_DECAY_SECONDS = 60;
 
+    private const AI_DAILY_DECAY_SECONDS = 86400; // 24 hours
+
     public const AGENTS = [
         'single_tutor' => [
             'name' => 'Cyber Mentor',
@@ -50,9 +52,13 @@ class AiAgentService
         $tokens = 0;
         $meta = [];
         $unsafe = $this->isUnsafeRequest($message);
+        $messageHash = null;
+        $cacheHit = false;
 
         if (! $this->withinRateLimit($user)) {
             $content = $this->rateLimitResponse($message);
+        } elseif (! $this->withinDailyLimit($user)) {
+            $content = $this->dailyLimitResponse($message, $user);
         } elseif ($unsafe) {
             $content = $this->safetyResponse($message);
         } elseif ($deterministicResponse = $this->deterministicResponse($message, $agentType, $history, $lesson, $user)) {
@@ -61,16 +67,26 @@ class AiAgentService
             $content = $scopeResponse['message'];
             $meta = $scopeResponse['meta'];
         } else {
-            $result = $this->resolveAiResponse(
-                $this->messages($user, $agent['prompt_key'], $lesson, $history, $message),
-                $content,
-                $version,
-            );
+            $messageHash = $this->messageHash($message, $agentType, $lesson?->id);
+            $cachedResponse = $this->findCachedResponse($messageHash);
 
-            $content = $result['content'];
-            $tokens = $result['tokens'];
+            if ($cachedResponse !== null) {
+                $content = $cachedResponse;
+                $cacheHit = true;
+            } else {
+                $result = $this->resolveAiResponse(
+                    $this->messages($user, $agent['prompt_key'], $lesson, $history, $message),
+                    $content,
+                    $version,
+                );
+
+                $content = $result['content'];
+                $tokens = $result['tokens'];
+            }
         }
 
+        // Store raw response before personalization so it can be reused as a cache hit
+        $rawContent = $content;
         $content = $this->personalizeResponse($content, $message, $user);
 
         $interaction = AiInteraction::create([
@@ -78,10 +94,12 @@ class AiAgentService
             'lesson_id' => $lesson?->id,
             'platform_version' => $version,
             'agent_type' => $agentType,
+            'message_hash' => $messageHash,
             'prompt' => $message,
-            'response' => $content,
+            'response' => $rawContent,
             'tokens_used' => $tokens,
             'latency_ms' => (int) ((microtime(true) - $started) * 1000),
+            'cache_hit' => $cacheHit,
         ]);
 
         return [
@@ -272,6 +290,75 @@ If it is urgent, make the next message one focused question and I will help as s
             fn () => true,
             self::AI_RATE_LIMIT_DECAY_SECONDS,
         );
+    }
+
+    private function withinDailyLimit(User $user): bool
+    {
+        $limit = config('services.ai.daily_limit', 50);
+
+        return RateLimiter::attempt(
+            "ai:daily:{$user->id}",
+            $limit,
+            fn () => true,
+            self::AI_DAILY_DECAY_SECONDS,
+        );
+    }
+
+    private function dailyLimitResponse(string $message, User $user): string
+    {
+        $limit = config('services.ai.daily_limit', 50);
+        $seconds = RateLimiter::availableIn("ai:daily:{$user->id}");
+        $hours = (int) ceil($seconds / 3600);
+
+        if ($this->containsArabic($message)) {
+            $hoursLabel = $hours === 1 ? 'ساعة' : 'ساعات';
+
+            return "مرحباً! وصلت للحد اليومي لرسائل الذكاء الاصطناعي ({$limit} رسالة في اليوم).
+
+الحد يُعاد خلال {$hours} {$hoursLabel}.
+
+نصيحة: حاول تدمج أسئلتك في رسالة واحدة عشان تستفيد أكثر من رصيدك اليومي.";
+        }
+
+        $hoursLabel = $hours === 1 ? 'hour' : 'hours';
+
+        return "You have reached your daily AI message limit ({$limit} messages per day).
+
+Your limit resets in {$hours} {$hoursLabel}.
+
+Tip: combine related questions into one message to get more out of your daily quota.";
+    }
+
+    /**
+     * Build a stable hash for a question so identical questions can share a cached response.
+     * Hash includes: normalized message + agent type + lesson id.
+     */
+    private function messageHash(string $message, string $agentType, ?int $lessonId): string
+    {
+        $normalized = Str::lower(trim($message));
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/[،,؟?!.؛;:]+/u', '', $normalized) ?? $normalized;
+
+        return hash('sha256', $normalized.'|'.$agentType.'|'.($lessonId ?? ''));
+    }
+
+    /**
+     * Return a previously stored AI response for the same question, or null on miss.
+     * Only returns responses that cost tokens (real AI answers) and are not themselves cache hits.
+     */
+    private function findCachedResponse(string $hash): ?string
+    {
+        $ttlDays = config('services.ai.cache_ttl_days', 30);
+
+        $response = AiInteraction::where('message_hash', $hash)
+            ->where('tokens_used', '>', 0)
+            ->where('cache_hit', false)
+            ->whereNotNull('response')
+            ->where('created_at', '>=', now()->subDays($ttlDays))
+            ->latest()
+            ->value('response');
+
+        return $response ?: null;
     }
 
     private function containsArabic(string $message): bool

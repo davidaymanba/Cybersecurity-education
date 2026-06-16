@@ -47,4 +47,9 @@ return [
         'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
     ],
 
+    'ai' => [
+        'daily_limit' => (int) env('AI_DAILY_LIMIT', 30),
+        'cache_ttl_days' => (int) env('AI_CACHE_TTL_DAYS', 30),
+    ],
+
 ];

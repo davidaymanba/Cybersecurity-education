@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AiInteraction extends Model
 {
     protected $fillable = [
-        'user_id', 'lesson_id', 'platform_version', 'agent_type', 'prompt',
-        'response', 'tokens_used', 'latency_ms',
+        'user_id', 'lesson_id', 'platform_version', 'agent_type',
+        'message_hash', 'prompt', 'response', 'tokens_used', 'latency_ms', 'cache_hit',
     ];
 
     public function user(): BelongsTo
