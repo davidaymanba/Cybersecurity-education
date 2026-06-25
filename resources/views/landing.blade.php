@@ -4,31 +4,14 @@
 @php
     $featuredLessons = ($lessons ?? collect())->take(3);
 
-    $stats = [
-        ['value' => '2', 'label' => 'AI learning modes'],
-        ['value' => '4+', 'label' => 'Cybersecurity tracks'],
-        ['value' => '24/7', 'label' => 'Guided AI support'],
-        ['value' => '100%', 'label' => 'Progress visibility'],
-    ];
-
-    $tracks = [
-        ['title' => 'Network Security', 'copy' => 'Understand attacks, defenses, protocols, and layered controls through guided practice.'],
-        ['title' => 'Threat Modeling', 'copy' => 'Map assets, risks, attack paths, and mitigation choices before incidents happen.'],
-        ['title' => 'Incident Response', 'copy' => 'Practice triage, containment, evidence review, and structured recovery decisions.'],
-        ['title' => 'Secure Coding', 'copy' => 'Learn how vulnerabilities appear in code and how to prevent them early.'],
-    ];
+    $stats  = __('messages.stats');
+    $tracks = __('messages.track_cards');
+    $steps  = __('messages.steps');
 
     $agents = [
         ['name' => 'Guide Agent', 'role' => 'Keeps learners oriented and recommends the next best step.'],
         ['name' => 'Tutor Agent', 'role' => 'Explains concepts, answers questions, and adapts explanations to the learner.'],
         ['name' => 'Quiz Agent', 'role' => 'Checks understanding with targeted questions and instant feedback.'],
-    ];
-
-    $steps = [
-        ['number' => '01', 'title' => 'Choose a lesson', 'copy' => 'Start with a focused cybersecurity topic and clear learning outcomes.'],
-        ['number' => '02', 'title' => 'Learn with AI', 'copy' => 'Compare single-agent support with a multi-agent learning team.'],
-        ['number' => '03', 'title' => 'Test knowledge', 'copy' => 'Complete quizzes that measure comprehension and confidence.'],
-        ['number' => '04', 'title' => 'Track progress', 'copy' => 'Review engagement, score patterns, and learning performance over time.'],
     ];
 @endphp
 
@@ -171,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <p class="text-sm font-semibold uppercase tracking-[.2em] text-cyan-200">{{ __('messages.how_it_works') }}</p>
             <h2 class="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{{ __('messages.how_it_works_heading') }}</h2>
             <p class="mt-5 text-base leading-7 text-slate-400">
-                The platform is built for cybersecurity education and research, so students get a polished learning experience while instructors can review performance signals.
+                {{ __('messages.how_it_works_copy') }}
             </p>
         </div>
 
@@ -195,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 <h2 class="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{{ __('messages.start_with_lessons') }}</h2>
             </div>
             @auth
-                <a href="{{ route('lessons.index') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">View all lessons</a>
+                <a href="{{ route('lessons.index') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">{{ __('messages.view_all_lessons') }}</a>
             @else
                  <a href="{{ route('register') }}" class="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">{{ __('messages.register') }}</a>
             @endauth
@@ -204,16 +187,16 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="mt-10 grid gap-5 md:grid-cols-3">
             @forelse($featuredLessons as $lesson)
                 <article class="rounded-xl border border-white/10 bg-slate-950/70 p-5">
-                    <span class="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">Lesson {{ $loop->iteration }}</span>
+                    <span class="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">{{ __('messages.lesson_number', ['number' => $loop->iteration]) }}</span>
                     <h3 class="mt-5 text-xl font-semibold text-white">{{ $lesson->title }}</h3>
-                    <p class="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">{{ $lesson->summary ?? $lesson->description ?? 'A practical cybersecurity lesson with AI-assisted learning support and progress tracking.' }}</p>
+                    <p class="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">{{ $lesson->summary ?? $lesson->description ?? __('messages.lesson_preview') }}</p>
                 </article>
             @empty
-                @foreach(['Cybersecurity Foundations', 'Defensive Thinking', 'AI-Guided Assessment'] as $lessonTitle)
+                @foreach([__('messages.fallback_lesson_title_1'), __('messages.fallback_lesson_title_2'), __('messages.fallback_lesson_title_3')] as $lessonTitle)
                     <article class="rounded-xl border border-white/10 bg-slate-950/70 p-5">
-                        <span class="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">Preview</span>
+                        <span class="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">{{ __('messages.preview') }}</span>
                         <h3 class="mt-5 text-xl font-semibold text-white">{{ $lessonTitle }}</h3>
-                        <p class="mt-3 text-sm leading-6 text-slate-400">A structured learning module designed for guided study, practical examples, and measurable assessment.</p>
+                        <p class="mt-3 text-sm leading-6 text-slate-400">{{ __('messages.fallback_lesson_copy') }}</p>
                     </article>
                 @endforeach
             @endforelse
@@ -224,8 +207,8 @@ document.addEventListener('DOMContentLoaded', function(){
 <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:py-20">
     <div class="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <div class="rounded-2xl border border-white/10 bg-slate-900/80 p-6 sm:p-8">
-            <p class="text-sm font-semibold uppercase tracking-[.2em] text-cyan-200">Research Analytics</p>
-            <h2 class="mt-3 text-3xl font-semibold tracking-tight text-white">Designed to compare learning behavior, not just final scores.</h2>
+            <p class="text-sm font-semibold uppercase tracking-[.2em] text-cyan-200">{{ __('messages.research_analytics') }}</p>
+            <h2 class="mt-3 text-3xl font-semibold tracking-tight text-white">{{ __('messages.research_analytics_heading') }}</h2>
             <p class="mt-5 max-w-2xl text-base leading-7 text-slate-400">
                 {{ __('messages.analytics_paragraph') }}
             </p>
