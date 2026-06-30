@@ -30,7 +30,7 @@ class AuthController extends Controller
             return redirect()->intended(auth()->user()->isAdmin() ? route('admin.dashboard') : route('dashboard'));
         }
 
-        return back()->withErrors(['email' => 'The provided credentials do not match our records.'])->onlyInput('email');
+        return back()->withErrors(['email' => __('messages.invalid_credentials')])->onlyInput('email');
     }
 
     public function register(): View
@@ -76,7 +76,7 @@ class AuthController extends Controller
         }
 
         // Generic message to prevent email enumeration.
-        return back()->with('status', 'If that email is registered, a reset link has been sent to your inbox.');
+        return back()->with('status', __('messages.reset_link_sent'));
     }
 
     public function showReset(Request $request, string $token): View
@@ -103,7 +103,7 @@ class AuthController extends Controller
         );
 
         if ($status === Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', 'Password reset successfully. Please sign in.');
+            return redirect()->route('login')->with('status', __('messages.password_reset_success'));
         }
 
         return back()->withInput($request->only('email'))

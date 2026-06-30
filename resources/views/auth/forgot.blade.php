@@ -1,5 +1,9 @@
 @extends('layouts.app', ['title' => 'Forgot Password'])
 
+@php
+    $isArabic = app()->getLocale() === 'ar';
+@endphp
+
 @push('styles')
 <style>
     @keyframes spin-slow  { to { transform: rotate(360deg); } }
@@ -32,6 +36,25 @@
         border-radius:.625rem; color:#f1f5f9;
         font-size:.9375rem; outline:none;
         transition: border-color .2s, box-shadow .2s;
+    }
+    [dir="rtl"] .input-field {
+        padding:13px 44px 13px 16px;
+    }
+    .field-icon {
+        position: absolute;
+        inset-block: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        padding-left: 1rem;
+        color: #64748b;
+        pointer-events: none;
+    }
+    [dir="rtl"] .field-icon {
+        left: auto;
+        right: 0;
+        padding-left: 0;
+        padding-right: 1rem;
     }
     .input-field::placeholder { color:#334155; }
     .input-field:focus {
@@ -88,22 +111,22 @@
         </div>
 
         {{-- Heading --}}
-        <h1 class="text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">
-            Account<br>
+        <h1 class="text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl {{ $isArabic ? 'text-right' : '' }}">
+            {{ $isArabic ? 'استعادة' : 'Account' }}<br>
             <span class="bg-gradient-to-r from-cyan-300 to-cyan-500 bg-clip-text text-transparent">
-                Recovery
+                {{ $isArabic ? 'الحساب' : 'Recovery' }}
             </span>
         </h1>
-        <p class="mt-4 max-w-sm text-base leading-relaxed text-slate-400">
-            Reset your password in three quick steps — no hassle, fully secured.
+        <p class="mt-4 max-w-sm text-base leading-relaxed text-slate-400 {{ $isArabic ? 'text-right' : '' }}">
+            {{ $isArabic ? 'أعد تعيين كلمة المرور في ثلاث خطوات سريعة وبشكل آمن بالكامل.' : 'Reset your password in three quick steps — no hassle, fully secured.' }}
         </p>
 
         {{-- 3-step process --}}
         <ol class="mt-10 space-y-4">
             @foreach([
-                ['01', 'Enter your email', "We'll look up your registered account."],
-                ['02', 'Check your inbox', 'A secure one-time reset link will arrive shortly.'],
-                ['03', 'Set new password', "Choose a strong password and you're back in."],
+                ['01', $isArabic ? 'أدخل بريدك الإلكتروني' : 'Enter your email', $isArabic ? 'سنبحث عن حسابك المسجل.' : "We'll look up your registered account."],
+                ['02', $isArabic ? 'تحقق من بريدك' : 'Check your inbox', $isArabic ? 'سيصلك رابط آمن لإعادة التعيين خلال لحظات.' : 'A secure one-time reset link will arrive shortly.'],
+                ['03', $isArabic ? 'أنشئ كلمة مرور جديدة' : 'Set new password', $isArabic ? 'اختر كلمة مرور قوية ثم تابع التعلم.' : "Choose a strong password and you're back in."],
             ] as $step)
             <li class="step-enter flex items-start gap-4">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
@@ -111,7 +134,7 @@
                              font-mono text-xs font-bold text-cyan-400">
                     {{ $step[0] }}
                 </span>
-                <div class="pt-1">
+                <div class="pt-1 {{ $isArabic ? 'text-right' : '' }}">
                     <p class="text-sm font-semibold text-slate-200">{{ $step[1] }}</p>
                     <p class="mt-0.5 text-xs text-slate-500">{{ $step[2] }}</p>
                 </div>
@@ -129,7 +152,7 @@
                          10.5h13.5a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5
                          1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-7.5a1.5 1.5 0 0 1 1.5-1.5Z"/>
             </svg>
-            Reset links expire after 60 minutes
+            {{ $isArabic ? 'رابط الاستعادة ينتهي خلال 60 دقيقة' : 'Reset links expire after 60 minutes' }}
         </div>
     </div>
 
@@ -148,7 +171,7 @@
                           d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                 </svg>
                 <div>
-                    <p class="font-semibold">Email sent!</p>
+                    <p class="font-semibold">{{ $isArabic ? 'تم إرسال الرسالة' : 'Email sent!' }}</p>
                     <p class="mt-0.5 text-emerald-400/80">{{ session('status') }}</p>
                 </div>
             </div>
@@ -172,8 +195,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="text-xl font-bold text-white">Reset your password</h2>
-                    <p class="text-sm text-slate-500">We'll email you a secure reset link</p>
+                    <h2 class="text-xl font-bold text-white {{ $isArabic ? 'text-right' : '' }}">{{ $isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset your password' }}</h2>
+                    <p class="text-sm text-slate-500 {{ $isArabic ? 'text-right' : '' }}">{{ $isArabic ? 'سنرسل رابطًا آمنًا إلى بريدك الإلكتروني' : "We'll email you a secure reset link" }}</p>
                 </div>
             </div>
 
@@ -182,12 +205,11 @@
 
                 {{-- Email field --}}
                 <div class="mb-5">
-                    <label class="mb-2 block text-sm font-medium text-slate-300">
-                        Email address
+                    <label class="mb-2 block text-sm font-medium text-slate-300 {{ $isArabic ? 'text-right' : '' }}">
+                        {{ $isArabic ? 'البريد الإلكتروني' : 'Email address' }}
                     </label>
                     <div class="relative">
-                        <span class="pointer-events-none absolute inset-y-0 left-0 flex
-                                     items-center pl-4 text-slate-500">
+                        <span class="field-icon">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor"
                                  stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -202,7 +224,7 @@
                         </span>
                         <input name="email" type="email" value="{{ old('email') }}"
                                autocomplete="email" autofocus required
-                               placeholder="you@example.com"
+                               placeholder="{{ $isArabic ? 'you@example.com' : 'you@example.com' }}"
                                class="input-field {{ $errors->has('email') ? 'error' : '' }}">
                     </div>
                     @error('email')
@@ -231,7 +253,7 @@
                                      12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0
                                      0h7.5"/>
                         </svg>
-                        Send reset link
+                        {{ $isArabic ? 'إرسال رابط الاستعادة' : 'Send reset link' }}
                     </span>
                 </button>
 
@@ -240,7 +262,7 @@
             {{-- Divider --}}
             <div class="my-6 flex items-center gap-3">
                 <div class="h-px flex-1 bg-white/6"></div>
-                <span class="text-xs text-slate-600">or</span>
+                <span class="text-xs text-slate-600">{{ $isArabic ? 'أو' : 'or' }}</span>
                 <div class="h-px flex-1 bg-white/6"></div>
             </div>
 
@@ -254,7 +276,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round"
                           d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
                 </svg>
-                Back to login
+                {{ $isArabic ? 'العودة لتسجيل الدخول' : 'Back to login' }}
             </a>
 
         </div>
@@ -262,10 +284,10 @@
         {{-- Mobile: show steps below card --}}
         <div class="mt-6 block lg:hidden">
             <p class="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-600">
-                How it works
+                {{ $isArabic ? 'الخطوات' : 'How it works' }}
             </p>
             <ol class="space-y-3">
-                @foreach(['Enter email', 'Check inbox', 'Set new password'] as $i => $s)
+                @foreach($isArabic ? ['أدخل البريد', 'تحقق من البريد', 'أنشئ كلمة مرور'] : ['Enter email', 'Check inbox', 'Set new password'] as $i => $s)
                 <li class="flex items-center gap-3 text-sm text-slate-500">
                     <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md
                                  bg-cyan-400/10 font-mono text-[11px] font-bold text-cyan-500">
