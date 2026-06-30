@@ -9,6 +9,7 @@
     <link rel="alternate icon" href="/favicon.ico">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    @stack('styles')
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased {{ app()->getLocale() === 'ar' ? 'rtl' : '' }}">
     <div class="fixed inset-0 -z-10 bg-gradient-to-b from-[#041225] to-[#071426]"></div>

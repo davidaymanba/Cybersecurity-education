@@ -26,6 +26,8 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::post('/register', [AuthController::class, 'store'])->name('register.store');
         Route::get('/forgot-password', [AuthController::class, 'forgot'])->name('password.request');
         Route::post('/forgot-password', [AuthController::class, 'sendReset'])->name('password.email');
+        Route::get('/reset-password/{token}', [AuthController::class, 'showReset'])->name('password.reset');
+        Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
     });
 
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');

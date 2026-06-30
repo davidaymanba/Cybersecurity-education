@@ -68,9 +68,46 @@ class AuthController extends Controller
     public function sendReset(Request $request): RedirectResponse
     {
         $request->validate(['email' => ['required', 'email']]);
-        Password::sendResetLink($request->only('email'));
 
-        return back()->with('status', 'If the account exists, a reset link has been sent.');
+        try {
+            Password::sendResetLink($request->only('email'));
+        } catch (\Exception) {
+            // Mail driver may not be configured — silently absorb to avoid leaking internals.
+        }
+
+        // Generic message to prevent email enumeration.
+        return back()->with('status', 'If that email is registered, a reset link has been sent to your inbox.');
+    }
+
+    public function showReset(Request $request, string $token): View
+    {
+        return view('auth.reset', [
+            'token' => $token,
+            'email' => $request->string('email'),
+        ]);
+    }
+
+    public function resetPassword(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'token'    => ['required'],
+            'email'    => ['required', 'email'],
+            'password' => ['required', 'confirmed', 'min:8'],
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill(['password' => $password])->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return redirect()->route('login')->with('status', 'Password reset successfully. Please sign in.');
+        }
+
+        return back()->withInput($request->only('email'))
+                     ->withErrors(['email' => __($status)]);
     }
 
     public function logout(Request $request): RedirectResponse
