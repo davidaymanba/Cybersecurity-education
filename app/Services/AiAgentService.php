@@ -1857,27 +1857,15 @@ Tip: combine related questions into one message to get more out of your daily qu
             return $concept;
         }
 
-        $summary = $lesson?->summary;
-
         if ($arabic) {
-            $idea = $summary
-                ? strip_tags($summary)
-                : 'حدّد المفهوم اللي تبغاه بدقة وأشرحه لك: تعريفه، سبب أهميته، ومثال دفاعي عملي';
-
-            return "خلّنا نشرحها بشكل آمن ومبسّط:\n\n"
-                ."**الفكرة:** {$idea}.\n\n"
-                ."**مثال دفاعي:** اربط المفهوم بطرق الحماية أو الكشف أو تقليل المخاطر، بدون أي خطوات هجومية.\n\n"
-                .'تبغى مثال أبسط، مقارنة، ولا روابط للتعلم؟';
+            return "خلّنا نشرحها بشكل آمن ومبسّط.\n\n"
+                ."حدّد المفهوم اللي تبغاه بدقة وأشرحه لك: تعريفه، سبب أهميته، ومثال دفاعي عملي.\n\n"
+                .'أمثلة: CIA Triad، التصيّد (Phishing)، MFA، كلمة المرور القوية، DNS، جدار الحماية، HTTPS، VPN.';
         }
 
-        $idea = $summary
-            ? strip_tags($summary)
-            : 'tell me the exact concept and I will cover its definition, why it matters, and a practical defensive example';
-
-        return "Let's break it down in a study-safe way:\n\n"
-            ."**Idea:** {$idea}.\n\n"
-            ."**Defensive example:** connect the concept to how you protect, detect, or reduce risk, with no offensive steps.\n\n"
-            .'Would you like a simpler example, a comparison, or some learning links?';
+        return "I can explain any cybersecurity concept in a clear, defensive way.\n\n"
+            ."Just name the concept and I will cover: its definition, why it matters, and a practical defensive example.\n\n"
+            .'Examples: CIA Triad, Phishing, MFA, Strong Passwords, DNS, Firewall, HTTPS, VPN, SQL Injection.';
     }
 
     private function knownConceptExplanation(string $message, bool $arabic): ?string
@@ -1904,6 +1892,21 @@ Tip: combine related questions into one message to get more out of your daily qu
                 'match' => ['dns', 'domain name system', 'نظام أسماء النطاقات', 'دي ان اس'],
                 'en' => "**DNS (Domain Name System)** translates human-readable domain names (like example.com) into IP addresses so devices can find each other.\n\n**Security angle:** attackers may try DNS spoofing or poisoning to redirect you to fake sites. Defenses include DNSSEC, trusted resolvers, and monitoring for unusual lookups.\n\nWant a simple analogy for how DNS works?",
                 'ar' => "**DNS (نظام أسماء النطاقات)** يترجم أسماء النطاقات المفهومة للبشر (زي example.com) إلى عناوين IP عشان الأجهزة تلاقي بعض.\n\n**الجانب الأمني:** المهاجمون ممكن يحاولوا DNS spoofing أو poisoning عشان يحوّلوك لمواقع مزيفة. الحماية تشمل DNSSEC، resolvers موثوقة، ومراقبة الاستعلامات الغريبة.\n\nتبغى تشبيه بسيط لطريقة عمل DNS؟",
+            ],
+            'password' => [
+                'match' => [
+                    'password', 'strong password', 'make password', 'create password',
+                    'password strength', 'good password', 'secure password', 'password policy',
+                    'كلمة مرور', 'كلمه سر', 'باسورد', 'كلمة سر', 'مرور قوية', 'مرور قوي',
+                    'تكوين باسورد', 'انشاء كلمه', 'كلمه مرور قوية', 'كيفيه تكوين',
+                ],
+                'en' => "**Strong Password Principles**\n\nA strong password follows these rules:\n\n1. **Length first** — use at least 12–16 characters. A long passphrase (e.g., `Coffee!Mountain\$River42`) is harder to crack than a short complex one.\n2. **Mix character types** — uppercase, lowercase, digits, and symbols (e.g., `@`, `!`, `#`).\n3. **Avoid predictable patterns** — no names, birthdays, \"password123\", or keyboard walks (\"qwerty\").\n4. **Unique per account** — never reuse the same password across sites.\n5. **Use a password manager** — tools like Bitwarden or 1Password generate and store strong passwords for you.\n6. **Add MFA** — even a strong password can be stolen; a second factor (app/SMS code) stops attackers who have it.\n\n**Why it matters:** weak or reused passwords are the #1 cause of account breaches.\n\nWould you like to know how password managers work, or how to evaluate your current password's strength?",
+                'ar' => "**مبادئ كلمة المرور القوية**\n\nكلمة المرور القوية تتبع هذه القواعد:\n\n1. **الطول أولاً** — استخدم 12-16 حرفاً على الأقل. عبارة طويلة (مثل `قهوة!جبل\$نهر42`) أصعب في الاختراق من كلمة قصيرة معقدة.\n2. **خلط أنواع الأحرف** — أحرف كبيرة وصغيرة وأرقام ورموز (مثل `@`، `!`، `#`).\n3. **تجنب الأنماط المتوقعة** — لا أسماء، ولا تواريخ ميلاد، ولا \"password123\".\n4. **كلمة مرور مختلفة لكل حساب** — لا تعيد استخدام نفس الكلمة في أكثر من موقع.\n5. **استخدم مدير كلمات المرور** — أدوات مثل Bitwarden أو 1Password تولّد وتحفظ كلمات مرور قوية لك.\n6. **فعّل MFA** — حتى لو سُرقت كلمة المرور، العامل الثاني يوقف المهاجم.\n\n**ليه مهم:** كلمات المرور الضعيفة أو المعادة هي السبب الأول لاختراق الحسابات.\n\nتبغى تعرف كيف تشتغل مديرات كلمات المرور، أو كيف تقيّم قوة كلمة مرورك الحالية؟",
+            ],
+            'firewall' => [
+                'match' => ['firewall', 'جدار الحماية', 'جدار حماية', 'فايروول'],
+                'en' => "**Firewall** is a security control that monitors and filters network traffic based on defined rules.\n\n**Types:**\n1. **Packet filter** — checks source/destination IP and port; fast but limited context.\n2. **Stateful firewall** — tracks active connections; blocks unexpected inbound packets.\n3. **Application-layer (WAF)** — inspects HTTP content; blocks SQL injection, XSS, etc.\n4. **Next-gen firewall (NGFW)** — combines all above plus IPS and app awareness.\n\n**Defensive value:** firewalls reduce the attack surface by blocking traffic that has no legitimate reason to reach your system.\n\nWant to know how to decide which ports to allow or block?",
+                'ar' => "**جدار الحماية (Firewall)** هو ضابط أمني يراقب ويصفي حركة الشبكة بناءً على قواعد محددة.\n\n**الأنواع:**\n1. **Packet Filter** — يفحص IP والبورت؛ سريع لكن محدود السياق.\n2. **Stateful Firewall** — يتابع الاتصالات النشطة؛ يحجب الحزم الواردة غير المتوقعة.\n3. **Application Layer (WAF)** — يفحص محتوى HTTP؛ يحجب SQL Injection وXSS.\n4. **Next-Gen Firewall (NGFW)** — يجمع كل ما سبق مع IPS ووعي التطبيقات.\n\n**الفائدة الدفاعية:** يقلص سطح الهجوم بحجب الحركة اللي ما لها سبب شرعي للوصول لنظامك.\n\nتبغى تعرف كيف تقرر أي بورتات تسمح بها أو تحجبها؟",
             ],
         ];
 
