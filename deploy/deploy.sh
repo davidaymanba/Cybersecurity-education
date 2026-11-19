@@ -11,6 +11,8 @@ set -euo pipefail
 HOST="${1:-root@187.126.26.74}"
 DIR=/opt/cyberlearn
 COMPOSE="docker compose -f docker-compose.prod.yml"
+# Reuse one SSH connection for every step (many quick connections can trip SSH rate limits).
+SSH=(ssh -o ControlMaster=auto -o "ControlPath=$HOME/.ssh/cm-cyberlearn-%C" -o ControlPersist=5m)
 
 cd "$(dirname "$0")/.."
 
@@ -23,10 +25,10 @@ fi
 echo "→ Uploading code to $HOST:$DIR"
 git ls-files -co --exclude-standard -z \
   | COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata --null -T - -czf - \
-  | ssh "$HOST" "set -e; mkdir -p $DIR; cd $DIR; find . -mindepth 1 -maxdepth 1 ! -name .env -exec rm -rf {} +; tar -xzf -"
+  | "${SSH[@]}" "$HOST" "set -e; mkdir -p $DIR; cd $DIR; find . -mindepth 1 -maxdepth 1 ! -name .env -exec rm -rf {} +; tar -xzf -"
 
 echo "→ Building and starting containers"
-ssh "$HOST" "set -e; cd $DIR
+"${SSH[@]}" "$HOST" "set -e; cd $DIR
   if [ ! -f .env ]; then echo 'Missing $DIR/.env: run deploy/server-init.sh first.' >&2; exit 1; fi
   $COMPOSE up -d --build --remove-orphans
   docker image prune -f >/dev/null
