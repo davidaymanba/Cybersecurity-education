@@ -21,6 +21,42 @@ Route::middleware([SetLocale::class])->group(function () {
         'lessons' => Schema::hasTable('lessons') ? Lesson::take(3)->get() : collect(),
     ]))->name('landing');
 
+    // Design preview of the new landing page (GSAP + Lenis + React islands). Not linked anywhere yet.
+    Route::get('/preview', function () {
+        $hasTables = Schema::hasTable('lessons');
+        $t = fn ($value) => \App\Support\LocalizedText::get($value);
+
+        $lessons = $hasTables
+            ? Lesson::with('section')->where('is_published', true)->orderBy('sort_order')->take(6)->get()
+            : collect();
+
+        return view('preview', ['payload' => [
+            'locale' => app()->getLocale(),
+            'auth' => auth()->check(),
+            'routes' => [
+                'register' => route('register'),
+                'login' => route('login'),
+                'lessons' => route('lessons.index'),
+                'dashboard' => route('dashboard'),
+                'langAr' => route('lang.switch', 'ar'),
+                'langEn' => route('lang.switch', 'en'),
+            ],
+            'stats' => [
+                'lessons' => $hasTables ? Lesson::where('is_published', true)->count() : 0,
+                'quizzes' => $hasTables ? \App\Models\Quiz::count() : 0,
+                'videos' => $hasTables ? \App\Models\VideoResource::where('approved', true)->count() : 0,
+                'agents' => 4,
+            ],
+            'lessons' => $lessons->map(fn ($lesson) => [
+                'title' => $t($lesson->title),
+                'summary' => $t($lesson->summary),
+                'difficulty' => $t($lesson->difficulty),
+                'minutes' => $lesson->duration_minutes,
+                'section' => $t($lesson->section?->title),
+            ])->values(),
+        ]]);
+    })->name('preview');
+
     Route::middleware('guest')->group(function () {
         Route::get('/login', [AuthController::class, 'login'])->name('login');
         Route::post('/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('login.store');

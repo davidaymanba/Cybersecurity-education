@@ -10,9 +10,11 @@ class LocalizedText
             return (string) $value;
         }
 
-        return trans('messages.content_map.'.$value) !== 'messages.content_map.'.$value
-            ? trans('messages.content_map.'.$value)
-            : $value;
+        // Look the text up directly: most source strings contain "." which trans() would treat
+        // as a nested-key separator, so sentences (lesson summaries) were never translated.
+        $map = trans('messages.content_map');
+
+        return is_array($map) && isset($map[$value]) ? $map[$value] : $value;
     }
 
     public static function html(?string $value): string
