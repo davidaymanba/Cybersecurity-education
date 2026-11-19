@@ -10,6 +10,10 @@ use Illuminate\Support\Str;
  */
 class QuizTutor
 {
+    private const REPROMPT_EN = 'Please answer with A, B, C, or D so I can grade it clearly.';
+
+    private const REPROMPT_AR = 'اكتب إجابتك بصيغة أ، ب، ج، أو د عشان أقدر أصححها لك.';
+
     public function __construct(
         private IntentDetector $intents,
     ) {}
@@ -34,14 +38,10 @@ class QuizTutor
         $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
         return preg_match('/\b(yes|yeah|yep|sure|ok|okay|another|next)\b/u', $text) === 1
+            || $this->containsWord($text, ['نعم', 'ايوه', 'أيوه', 'ايه', 'اه', 'إي', 'اي', 'تمام', 'اكيد', 'أكيد', 'يلا', 'هات', 'كمل'])
             || $this->intents->containsAny($text, [
                 'another question',
                 'next question',
-                'نعم',
-                'ايوه',
-                'أيوه',
-                'اه',
-                'تمام',
                 'سؤال تاني',
                 'سؤال ثاني',
                 'سؤال آخر',
@@ -76,9 +76,8 @@ class QuizTutor
         }
 
         return preg_match('/\b(no|nope|nah|stop|done|later|not now|no thanks|enough)\b/u', $text) === 1
+            || $this->containsWord($text, ['لا', 'لأ', 'لاء'])
             || $this->intents->containsAny($text, [
-                'لا',
-                'لأ',
                 'مش دلوقتي',
                 'مش دلوقت',
                 'خلاص',
@@ -120,13 +119,18 @@ class QuizTutor
 
     public function quizEvaluationResponse(string $message, array $history): ?string
     {
-        if ($this->lastAssistantOfferedAnotherQuestion($history)) {
+        $lastAssistant = (string) $this->intents->lastAssistantMessage($history);
+
+        if ($lastAssistant === '' || $this->lastAssistantOfferedAnotherQuestion($history)) {
             return null;
         }
 
+        $alreadyReprompted = str_contains($lastAssistant, self::REPROMPT_EN) || str_contains($lastAssistant, self::REPROMPT_AR);
         $quiz = $this->lastQuizFromHistory($history);
 
-        if (! $quiz) {
+        // Only grade while the quiz question (or our single re-prompt) is the latest assistant turn.
+        // Otherwise an old question in the history would capture every later message.
+        if (! $quiz || (! $alreadyReprompted && $this->quizIn($lastAssistant) === null)) {
             return null;
         }
 
@@ -134,9 +138,15 @@ class QuizTutor
         $useArabic = $this->intents->prefersArabicReply($message, $history);
 
         if (! $answer) {
-            return $useArabic
-                ? 'اكتب إجابتك بصيغة أ، ب، ج، أو د عشان أقدر أصححها لك.'
-                : 'Please answer with A, B, C, or D so I can grade it clearly.';
+            // Re-prompt once for short, answer-like messages; anything else (a new question, a
+            // request, or a second non-answer) leaves the quiz so the student is never stuck.
+            $wordCount = count(preg_split('/\s+/u', trim($message)) ?: []);
+
+            if ($alreadyReprompted || $wordCount > 4 || str_contains($message, '?') || str_contains($message, '؟')) {
+                return null;
+            }
+
+            return $useArabic ? self::REPROMPT_AR : self::REPROMPT_EN;
         }
 
         $isCorrect = $answer === $quiz['correct'];
@@ -172,17 +182,42 @@ class QuizTutor
                 continue;
             }
 
-            foreach ($this->quizBank() as $quiz) {
-                if (
-                    str_contains($content, $quiz['question_en'])
-                    || str_contains($content, $quiz['question_ar'])
-                ) {
-                    return $quiz;
-                }
+            if ($quiz = $this->quizIn($content)) {
+                return $quiz;
             }
         }
 
         return null;
+    }
+
+    /**
+     * The bank question contained in an assistant message, if any.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function quizIn(string $content): ?array
+    {
+        foreach ($this->quizBank() as $quiz) {
+            if (str_contains($content, $quiz['question_en']) || str_contains($content, $quiz['question_ar'])) {
+                return $quiz;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, string>  $words
+     */
+    private function containsWord(string $text, array $words): bool
+    {
+        foreach ($words as $word) {
+            if (preg_match('/(?<![\p{L}\p{N}])'.preg_quote($word, '/').'(?![\p{L}\p{N}])/u', $text)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -192,26 +227,49 @@ class QuizTutor
     {
         $text = trim(Str::lower($message));
         $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text) ?? $text;
-        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
 
-        $letterMap = [
-            'a' => 'A',
-            'b' => 'B',
-            'c' => 'C',
-            'd' => 'D',
-            'أ' => 'A',
-            'ا' => 'A',
-            'ب' => 'B',
-            'ج' => 'C',
-            'د' => 'D',
-        ];
+        $letterMap = ['a' => 'A', 'b' => 'B', 'c' => 'C', 'd' => 'D', 'أ' => 'A', 'ا' => 'A', 'إ' => 'A', 'ب' => 'B', 'ج' => 'C', 'د' => 'D'];
+        $tokens = $text === '' ? [] : explode(' ', $text);
 
-        $firstToken = Str::before($text, ' ');
-
-        if (isset($letterMap[$firstToken])) {
-            return $letterMap[$firstToken];
+        // "a or b?" is a hesitation, not an answer.
+        if (preg_match('/(?<![\p{L}])(a|b|c|d|أ|ا|ب|ج|د)\s+(or|او|أو)\s+(a|b|c|d|أ|ا|ب|ج|د)(?![\p{L}])/u', $text)) {
+            return null;
         }
 
+        // 1) "B", "b)", "ب. ..." — the letter comes first.
+        if ($tokens && isset($letterMap[$tokens[0]])) {
+            return $letterMap[$tokens[0]];
+        }
+
+        // 2) "I think it's B", "the answer is b", "الإجابة ب", "أظن أ", "option C".
+        $cue = '(?:answer|option|choice|choose|pick|go with|think|guess|its|it s|is|الاجابه|الإجابة|الاجابة|اجابتي|إجابتي|الجواب|جوابي|اظن|أظن|اعتقد|أعتقد|اختار|أختار|الخيار|خيار|هي|هو)';
+        if (preg_match('/(?<![\p{L}])'.$cue.'\s+(a|b|c|d|أ|ا|إ|ب|ج|د)(?![\p{L}\p{N}])/u', $text, $m)) {
+            return $letterMap[$m[1]];
+        }
+
+        // 3) Exactly one standalone option letter anywhere (English "a" is skipped: it is usually an article).
+        $letters = array_values(array_unique(array_map(
+            fn ($t) => $letterMap[$t],
+            array_filter($tokens, fn ($t) => isset($letterMap[$t]) && ! in_array($t, ['a', 'ا'], true))
+        )));
+        if (count($letters) === 1) {
+            return $letters[0];
+        }
+
+        // 4) The student typed an option's text (right or wrong one).
+        foreach (['options_en', 'options_ar'] as $key) {
+            foreach ($quiz[$key] as $index => $option) {
+                $optionText = trim(preg_replace('/^\s*\S+[.)]\s*/u', '', Str::lower($option)) ?? '');
+                $optionText = trim(preg_replace('/\s+/u', ' ', preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $optionText) ?? '') ?? '');
+
+                if ($optionText !== '' && (str_contains($text, $optionText) || (mb_strlen($text) >= 8 && str_contains($optionText, $text)))) {
+                    return 'ABCD'[$index];
+                }
+            }
+        }
+
+        // 5) Key words of the correct answer ("domain names", "سرية").
         foreach ($quiz['acceptable'] as $acceptable) {
             if (str_contains($text, Str::lower($acceptable))) {
                 return $quiz['correct'];

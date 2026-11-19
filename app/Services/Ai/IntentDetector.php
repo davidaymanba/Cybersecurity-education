@@ -37,6 +37,44 @@ class IntentDetector
             'تفريغ lsass',
         ];
 
+        // Gaining access to something that is not yours (someone else's Wi-Fi, phone, account).
+        // Blocked unless the message is clearly about defending against it.
+        $unauthorizedAccess = [
+            'hack into',
+            'hack wifi',
+            'hack a wifi',
+            'hack the wifi',
+            'crack wifi',
+            'crack a wifi',
+            'crack the wifi',
+            "neighbor's wifi",
+            "neighbour's wifi",
+            'neighbors wifi',
+            'neighbours wifi',
+            'hack a phone',
+            'hack someone',
+            'hack my ex',
+            'hack whatsapp',
+            'hack snapchat',
+            'hack tiktok',
+            'hack twitter',
+            'spy on my',
+            'اختراق واي فاي',
+            'اختراق الواي فاي',
+            'اختراق شبكة الجيران',
+            'واي فاي الجيران',
+            'اخترق',
+            'أخترق',
+            'اهكر',
+            'أهكر',
+            'تهكير',
+            'اختراق جوال',
+            'اختراق جهاز',
+            'اختراق واتساب',
+            'اختراق سناب',
+            'تجسس على',
+        ];
+
         // Dangerous capability keywords.
         $dangerousCapability = [
             'credential stuffing',
@@ -145,6 +183,13 @@ class IntentDetector
             return true;
         }
 
+        $protective = ['how to protect', 'how to prevent', 'how to defend', 'how to detect', 'protect my', 'secure my',
+            'كيف أحمي', 'كيف احمي', 'كيف أمنع', 'كيف امنع', 'أحمي', 'احمي', 'حماية'];
+
+        if ($this->containsAny($text, $unauthorizedAccess) && ! $this->containsAny($text, $protective)) {
+            return true;
+        }
+
         $hasDangerous = $this->containsAny($text, $dangerousCapability);
         $hasOffensiveVerb = $this->containsAny($text, $offensiveVerbs);
         $hasDefensiveIntent = $this->containsAny($text, $defensiveIntent);
@@ -152,6 +197,47 @@ class IntentDetector
         // Block only when a dangerous capability is paired with an explicit offensive build/deploy
         // intent AND the message does NOT carry defensive learning intent.
         return $hasDangerous && $hasOffensiveVerb && ! $hasDefensiveIntent;
+    }
+
+    /**
+     * Like containsAny(), but tolerant of Arabic spelling variants and the definite article
+     * ("كلمة المرور" matches "كلمة مرور"), and matches short Latin terms as whole words only
+     * (so "cia" does not match inside "especially").
+     *
+     * @param  array<int, string>  $terms
+     */
+    public function containsAnyNormalized(string $text, array $terms): bool
+    {
+        $haystack = $this->normalizeForMatching($text);
+
+        foreach ($terms as $term) {
+            $needle = $this->normalizeForMatching($term);
+
+            if ($needle === '') {
+                continue;
+            }
+
+            if (preg_match('/^[a-z0-9 \'\-]+$/', $needle)) {
+                if (preg_match('/(?<![a-z0-9])'.preg_quote($needle, '/').'(?![a-z0-9])/', $haystack)) {
+                    return true;
+                }
+            } elseif (str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function normalizeForMatching(string $text): string
+    {
+        $text = Str::lower($text);
+        $text = (string) preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $text); // tashkeel + tatweel
+        $text = strtr($text, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ة' => 'ه', 'ى' => 'ي']);
+        // Drop common attached prefixes: و/ب/ف/ك + ال, لل, ال.
+        $text = (string) preg_replace('/(?<![\p{L}])(?:[وبفك]?ال|لل)(?=\p{L}{2,})/u', '', $text);
+
+        return trim((string) preg_replace('/\s+/u', ' ', $text));
     }
 
     /**
@@ -168,8 +254,18 @@ class IntentDetector
             return true;
         }
 
-        if (preg_match('/[a-z]/i', $message) === 1) {
+        // "A", "b)", "ok": too short to tell, so keep the conversation's language.
+        if (preg_match_all('/[a-z]/i', $message) >= 3) {
             return false;
+        }
+
+        // Prefer the student's own latest message that has a clear language, then the assistant's.
+        foreach (array_reverse($history) as $turn) {
+            $content = (string) ($turn['content'] ?? '');
+
+            if (($turn['role'] ?? null) === 'user' && ($this->containsArabic($content) || preg_match_all('/[a-z]/i', $content) >= 3)) {
+                return $this->containsArabic($content);
+            }
         }
 
         return $this->containsArabic($this->lastAssistantMessage($history) ?? '');
@@ -313,6 +409,21 @@ class IntentDetector
             'where should i start',
             'where do i start',
             'what should i learn next',
+            'what should i study',
+            'study next',
+            'learn next',
+            "what's next",
+            'what next',
+            'after this lesson',
+            'next step',
+            'وش أدرس',
+            'وش ادرس',
+            'ايش ادرس',
+            'إيش أدرس',
+            'بعد هذا الدرس',
+            'الدرس الجاي',
+            'الخطوة الجاية',
+            'الخطوة التالية',
             'learning goal',
             'resources',
             'links',

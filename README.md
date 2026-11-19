@@ -61,12 +61,14 @@ php artisan migrate:fresh --seed
 GROQ_API_KEY=your_key_here          # used by both conditions unless overridden
 GROQ_SINGLE_API_KEY=                # optional: key for the single-agent condition
 GROQ_MULTI_API_KEY=                 # optional: key for the multi-agent condition
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 OPENAI_API_KEY=                     # optional fallback
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-AI requests are rate limited with `throttle:20,1` plus a per-user daily limit. Cached answers are per user and only for context-free questions. Assistant turns sent back in the chat history are only accepted if they match a reply the server actually sent. The service records prompt, response, agent type, platform version, latency, tokens, user, and lesson for research analytics.
+AI requests are rate limited with `throttle:20,1` plus a per-user daily limit.
+
+Groq's free tier allows about 8,000 tokens per minute for the whole account (single and multi share it); one AI answer costs roughly 800–1,500 tokens, so expect around 6 AI answers per minute before students get the built-in fallback replies. Short rate-limit waits (≤ 6 s) are retried once automatically. For a class, use a paid Groq tier and/or set `OPENAI_API_KEY` as an overflow fallback. Cached answers are per user and only for context-free questions. Assistant turns sent back in the chat history are only accepted if they match a reply the server actually sent. The service records prompt, response, agent type, platform version, latency, tokens, user, and lesson for research analytics.
 
 ## Research design
 

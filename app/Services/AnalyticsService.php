@@ -22,9 +22,9 @@ class AnalyticsService
     {
         return Cache::remember('analytics_overview', self::CACHE_TTL_SECONDS, function () {
             $totalInteractions = AiInteraction::count();
-            $cacheHits         = AiInteraction::where('cache_hit', true)->count();
-            $totalTokens       = (int) AiInteraction::sum('tokens_used');
-            $avgLatency        = (int) AiInteraction::where('tokens_used', '>', 0)->avg('latency_ms');
+            $cacheHits = AiInteraction::where('cache_hit', true)->count();
+            $totalTokens = (int) AiInteraction::sum('tokens_used');
+            $avgLatency = (int) AiInteraction::where('tokens_used', '>', 0)->avg('latency_ms');
 
             // Safety filter hits (interactions that cost 0 tokens AND are not cache hits likely hit rate-limit/safety)
             $safetyHits = AiInteraction::where('tokens_used', 0)
@@ -72,7 +72,7 @@ class AnalyticsService
                     ->get()
                     ->map(fn ($result) => [
                         'lesson_title' => $result->quiz?->lesson?->title ?? 'Deleted lesson',
-                        'score'        => (int) $result->score,
+                        'score' => (int) $result->score,
                     ])
                     ->all(),
             ];

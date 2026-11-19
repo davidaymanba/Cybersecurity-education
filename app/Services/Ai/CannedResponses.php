@@ -6,7 +6,6 @@ use App\Models\Lesson;
 use App\Models\User;
 use App\Traits\DetectsArabic;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 
 /**
  * Deterministic, bilingual replies used when no AI call is needed or every provider fails.
@@ -336,18 +335,16 @@ Tip: combine related questions into one message to get more out of your daily qu
         if ($arabic) {
             return "خلّنا نشرحها بشكل آمن ومبسّط.\n\n"
                 ."حدّد المفهوم اللي تبغاه بدقة وأشرحه لك: تعريفه، سبب أهميته، ومثال دفاعي عملي.\n\n"
-                .'أمثلة: CIA Triad، التصيّد (Phishing)، MFA، كلمة المرور القوية، DNS، جدار الحماية، HTTPS، VPN.';
+                .'أمثلة: CIA Triad، التصيّد (Phishing)، MFA، كلمة المرور القوية، DNS، جدار الحماية، HTTPS، VPN، حقن SQL، التشفير والهاش، برامج الفدية.';
         }
 
         return "I can explain any cybersecurity concept in a clear, defensive way.\n\n"
             ."Just name the concept and I will cover: its definition, why it matters, and a practical defensive example.\n\n"
-            .'Examples: CIA Triad, Phishing, MFA, Strong Passwords, DNS, Firewall, HTTPS, VPN, SQL Injection.';
+            .'Examples: CIA Triad, Phishing, MFA, Strong Passwords, DNS, Firewall, HTTPS, VPN, SQL Injection, Encryption vs Hashing, Ransomware.';
     }
 
     private function knownConceptExplanation(string $message, bool $arabic): ?string
     {
-        $text = Str::lower($message);
-
         $concepts = [
             'cia' => [
                 'match' => ['cia triad', 'cia', 'confidentiality integrity', 'السرية والسلامة', 'سي اي ايه', 'مثلث', 'cia triad and risk'],
@@ -369,6 +366,31 @@ Tip: combine related questions into one message to get more out of your daily qu
                 'en' => "**DNS (Domain Name System)** translates human-readable domain names (like example.com) into IP addresses so devices can find each other.\n\n**Security angle:** attackers may try DNS spoofing or poisoning to redirect you to fake sites. Defenses include DNSSEC, trusted resolvers, and monitoring for unusual lookups.\n\nWant a simple analogy for how DNS works?",
                 'ar' => "**DNS (نظام أسماء النطاقات)** يترجم أسماء النطاقات المفهومة للبشر (مثل example.com) إلى عناوين IP عشان الأجهزة تلقى بعضها.\n\n**الجانب الأمني:** المهاجمون ممكن يحاولوا DNS spoofing أو poisoning عشان يحوّلوك لمواقع مزيفة. الحماية تشمل DNSSEC، resolvers موثوقة، ومراقبة الاستعلامات الغريبة.\n\nتبغى تشبيه بسيط لطريقة عمل DNS؟",
             ],
+            'sql_injection' => [
+                'match' => ['sql injection', 'sqli', 'حقن sql', 'حقن اس كيو ال', 'حقن قواعد البيانات', 'حقن قاعدة البيانات'],
+                'en' => "**SQL Injection (SQLi)** happens when an application builds a database query by gluing user input directly into the SQL text, so crafted input can change what the query does (read, modify, or delete data).\n\n**How developers prevent it:**\n1. **Parameterized queries / prepared statements** — the query structure is fixed and user input is sent separately as data. This is the main fix.\n2. **Use an ORM or query builder** (e.g., Laravel Eloquent) that parameterizes for you.\n3. **Validate input** — allow-list expected formats (numbers, emails, IDs).\n4. **Least privilege** — the app's database account should only have the permissions it needs.\n5. **Hide detailed errors** from users and add a WAF plus monitoring as extra layers.\n\nWant to see the difference between an unsafe and a safe query in a simple example?",
+                'ar' => "**حقن SQL (SQL Injection)** يصير لما التطبيق يبني استعلام قاعدة البيانات بلصق مدخلات المستخدم مباشرة داخل نص الـ SQL، فمدخلات معيّنة ممكن تغيّر وظيفة الاستعلام (قراءة أو تعديل أو حذف بيانات).\n\n**كيف يمنعه المطورين:**\n1. **Parameterized Queries / Prepared Statements** — شكل الاستعلام ثابت والمدخلات تنرسل كبيانات منفصلة. هذا الحل الأساسي.\n2. **استخدم ORM** (مثل Eloquent في Laravel) لأنه يسوي الـ parameterization عنك.\n3. **تحقق من المدخلات** — اسمح بالصيغ المتوقعة فقط (أرقام، إيميلات، معرّفات).\n4. **أقل صلاحية** — حساب قاعدة البيانات للتطبيق ياخذ الصلاحيات اللي يحتاجها بس.\n5. **أخفِ رسائل الخطأ التفصيلية** عن المستخدم، وأضف WAF ومراقبة كطبقات إضافية.\n\nتبغى مثال بسيط يوضح الفرق بين استعلام غير آمن وآمن؟",
+            ],
+            'https' => [
+                'match' => ['https', 'ssl', 'tls', 'شهادة ssl', 'بروتوكول https'],
+                'en' => "**HTTPS** is HTTP protected by **TLS** encryption.\n\n**What it gives you:**\n1. **Confidentiality** — traffic between your browser and the site is encrypted, so others on the network cannot read it.\n2. **Integrity** — data cannot be silently modified in transit.\n3. **Authentication** — the site's certificate proves you are talking to the real domain.\n\n**Keep in mind:** the padlock only means the connection is encrypted — a phishing site can have HTTPS too, so still check the domain name.\n\nWant to know how certificates are verified?",
+                'ar' => "**HTTPS** هو HTTP محمي بتشفير **TLS**.\n\n**وش يعطيك:**\n1. **السرية** — الاتصال بين المتصفح والموقع مشفّر، فاللي على نفس الشبكة ما يقدر يقرأه.\n2. **السلامة** — البيانات ما تتعدّل في الطريق بدون ما ينكشف.\n3. **التحقق من الهوية** — شهادة الموقع تثبت إنك تكلم النطاق الحقيقي.\n\n**انتبه:** القفل يعني إن الاتصال مشفّر بس — موقع التصيّد ممكن يكون عنده HTTPS برضه، فتأكد من اسم النطاق دايماً.\n\nتبغى تعرف كيف يتم التحقق من الشهادات؟",
+            ],
+            'vpn' => [
+                'match' => ['vpn', 'virtual private network', 'شبكة افتراضية خاصة', 'في بي ان'],
+                'en' => "**VPN (Virtual Private Network)** creates an encrypted tunnel between your device and a VPN server.\n\n**When it helps:**\n1. On **public Wi-Fi** — others on the network cannot read your traffic.\n2. **Remote work** — securely reach company systems as if you were in the office.\n3. Hides your traffic from the local network and your IP from the sites you visit.\n\n**Limits:** a VPN does not stop phishing or malware, and you are trusting the VPN provider with your traffic — choose a reputable one.\n\nWant to compare a VPN with HTTPS?",
+                'ar' => "**VPN (الشبكة الافتراضية الخاصة)** تسوي نفق مشفّر بين جهازك وسيرفر الـ VPN.\n\n**متى يفيد:**\n1. على **الواي فاي العام** — اللي على نفس الشبكة ما يقدرون يقرون اتصالك.\n2. **العمل عن بُعد** — توصل لأنظمة الشركة بأمان كأنك في المكتب.\n3. يخفي اتصالك عن الشبكة المحلية ويخفي عنوان الـ IP عن المواقع.\n\n**حدوده:** الـ VPN ما يمنع التصيّد ولا البرمجيات الخبيثة، وأنت تأمّن مزوّد الـ VPN على بياناتك — فاختر مزوّد موثوق.\n\nتبغى مقارنة بين الـ VPN والـ HTTPS؟",
+            ],
+            'encryption_hashing' => [
+                'match' => ['encryption', 'encrypt', 'hashing', 'hash', 'symmetric', 'asymmetric', 'تشفير', 'هاش', 'تجزئه', 'متماثل'],
+                'en' => "**Encryption vs. Hashing**\n\n**Encryption** is two-way: data is scrambled with a key and can be decrypted back with the right key. Used to protect data you need to read later (files, HTTPS traffic).\n- **Symmetric** (e.g., AES): one shared key — fast, used for bulk data.\n- **Asymmetric** (e.g., RSA, ECC): a public key to encrypt and a private key to decrypt — used for key exchange and digital signatures.\n\n**Hashing** is one-way: it turns data into a fixed-length fingerprint (e.g., SHA-256) that cannot be reversed. Used to check integrity and to store passwords — with a slow, salted algorithm like **bcrypt** or **Argon2**.\n\n**Rule of thumb:** need the original back → encrypt. Only need to verify → hash.\n\nWant an example of how a website checks your password using a hash?",
+                'ar' => "**الفرق بين التشفير والهاش**\n\n**التشفير (Encryption)** باتجاهين: البيانات تتشفّر بمفتاح وترجع لأصلها بالمفتاح الصحيح. نستخدمه لحماية بيانات نحتاج نقرأها بعدين (ملفات، اتصال HTTPS).\n- **متماثل (Symmetric)** مثل AES: مفتاح واحد مشترك — سريع ومناسب للبيانات الكبيرة.\n- **غير متماثل (Asymmetric)** مثل RSA وECC: مفتاح عام للتشفير ومفتاح خاص لفك التشفير — يُستخدم لتبادل المفاتيح والتوقيع الرقمي.\n\n**الهاش (Hashing)** باتجاه واحد: يحوّل البيانات لبصمة بطول ثابت (مثل SHA-256) ما ترجع لأصلها. نستخدمه للتحقق من سلامة البيانات ولتخزين كلمات المرور — بخوارزمية بطيئة مع salt مثل **bcrypt** أو **Argon2**.\n\n**القاعدة:** تحتاج ترجع الأصل ← شفّر. تحتاج تتحقق بس ← استخدم هاش.\n\nتبغى مثال كيف الموقع يتحقق من كلمة مرورك باستخدام الهاش؟",
+            ],
+            'ransomware' => [
+                'match' => ['ransomware', 'برامج الفدية', 'برنامج فدية', 'فديه', 'رانسوم'],
+                'en' => "**Ransomware** is malware that encrypts an organization's files and demands payment for the key — often also threatening to leak stolen data.\n\n**How organizations defend:**\n1. **Offline / immutable backups** that are tested regularly — the most important control.\n2. **Patch** systems and VPN/remote-access devices quickly.\n3. **MFA** on email, VPN and admin accounts.\n4. **Phishing awareness** — a common way in.\n5. **Least privilege and network segmentation** to limit spread.\n6. **EDR and monitoring** to catch it early, plus a practiced incident-response plan.\n\nWant to know what an incident-response plan for ransomware includes?",
+                'ar' => "**برامج الفدية (Ransomware)** برمجيات خبيثة تشفّر ملفات الجهة وتطلب فلوس مقابل المفتاح — وأحياناً تهدد بنشر البيانات المسروقة.\n\n**كيف تحمي الجهات نفسها:**\n1. **نسخ احتياطية منفصلة (Offline/Immutable)** وتنجرب بانتظام — أهم ضابط.\n2. **التحديثات** للأنظمة وأجهزة الـ VPN والوصول عن بُعد بسرعة.\n3. **MFA** على الإيميل والـ VPN وحسابات المدراء.\n4. **التوعية بالتصيّد** — لأنه من أشهر طرق الدخول.\n5. **أقل صلاحية وتقسيم الشبكة** عشان ما ينتشر.\n6. **EDR ومراقبة** لاكتشافه بدري، مع خطة استجابة للحوادث متدرّب عليها.\n\nتبغى تعرف وش تتضمن خطة الاستجابة لحادثة فدية؟",
+            ],
             'password' => [
                 'match' => [
                     'password', 'strong password', 'make password', 'create password',
@@ -387,7 +409,7 @@ Tip: combine related questions into one message to get more out of your daily qu
         ];
 
         foreach ($concepts as $concept) {
-            if ($this->intents->containsAny($text, $concept['match'])) {
+            if ($this->intents->containsAnyNormalized($message, $concept['match'])) {
                 return $arabic ? $concept['ar'] : $concept['en'];
             }
         }

@@ -222,6 +222,13 @@ class AiAgentService
             return $content;
         }
 
+        // The model already greets/addresses the student (often with the name transliterated,
+        // e.g. "هلا يا سارة"), so adding "Sara،" on top would greet twice.
+        $opening = Str::lower(Str::limit(strtok(ltrim($content), "\n") ?: '', 80, ''));
+        if (preg_match('/^[\W_]*(hi|hello|hey|dear|welcome|مرحب|أهلا|اهلا|أهلين|هلا|السلام|يا\s)|\bيا\s+\p{Arabic}+/u', $opening)) {
+            return $content;
+        }
+
         $prefix = ($this->containsArabic($message) || $this->containsArabic($content))
             ? "{$name}،"
             : "{$name},";

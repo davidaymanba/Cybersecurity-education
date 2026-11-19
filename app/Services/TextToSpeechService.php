@@ -26,40 +26,40 @@ class TextToSpeechService
         $disk->makeDirectory(self::AUDIO_DIR);
         $this->pruneOldFiles();
 
-        $voice    = in_array($voice, self::ALLOWED_VOICES, true) ? $voice : null;
+        $voice = in_array($voice, self::ALLOWED_VOICES, true) ? $voice : null;
         $baseName = Str::slug(Str::limit($text, 30, '')) ?: 'tts';
         $filename = $baseName.'-'.Str::lower(Str::random(12)).'.'.$format;
-        $path     = self::AUDIO_DIR.'/'.$filename;
+        $path = self::AUDIO_DIR.'/'.$filename;
         $fullPath = $disk->path($path);
 
         // Use AWS Polly when credentials are configured (always prefer config() over env()).
-        $awsKey    = config('services.polly.key');
+        $awsKey = config('services.polly.key');
         $awsSecret = config('services.polly.secret');
         $awsRegion = config('services.polly.region', 'us-east-1');
 
         if ($awsKey && $awsSecret && class_exists(PollyClient::class)) {
             $client = new PollyClient([
-                'version'     => '2016-06-10',
-                'region'      => $awsRegion,
+                'version' => '2016-06-10',
+                'region' => $awsRegion,
                 'credentials' => [
-                    'key'    => $awsKey,
+                    'key' => $awsKey,
                     'secret' => $awsSecret,
                 ],
             ]);
 
             $voiceId = $voice ?: (str_starts_with(app()->getLocale(), 'ar') ? 'Zeina' : 'Joanna');
-            $result  = $client->synthesizeSpeech([
+            $result = $client->synthesizeSpeech([
                 'OutputFormat' => strtoupper($format),
-                'Text'         => $text,
-                'VoiceId'      => $voiceId,
-                'TextType'     => 'text',
+                'Text' => $text,
+                'VoiceId' => $voiceId,
+                'TextType' => 'text',
             ]);
 
             file_put_contents($fullPath, $result->get('AudioStream')->getContents());
 
             return [
-                'path'      => $path,
-                'url'       => $disk->url($path),
+                'path' => $path,
+                'url' => $disk->url($path),
                 'full_path' => $fullPath,
             ];
         }
@@ -77,13 +77,13 @@ class TextToSpeechService
                 @unlink($aiffPath);
             } else {
                 $filename = pathinfo($filename, PATHINFO_FILENAME).'.aiff';
-                $path     = self::AUDIO_DIR.'/'.$filename;
+                $path = self::AUDIO_DIR.'/'.$filename;
                 $fullPath = $aiffPath;
             }
 
             return [
-                'path'      => $path,
-                'url'       => $disk->url($path),
+                'path' => $path,
+                'url' => $disk->url($path),
                 'full_path' => $fullPath,
             ];
         }

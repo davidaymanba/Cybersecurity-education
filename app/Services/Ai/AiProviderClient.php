@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\ClientException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,11 @@ use Illuminate\Support\Str;
  */
 class AiProviderClient
 {
+    private const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+    /** On a 429 asking us to wait at most this long, wait once and retry instead of falling back. */
+    private const MAX_RATE_LIMIT_WAIT_SECONDS = 6.0;
+
     /**
      * @param  array<int, array{role: string, content: string}>  $messages
      * @return array{content: string, tokens: int}
@@ -48,21 +54,69 @@ class AiProviderClient
      */
     private function callGroq(array $messages, string $apiKey, string $version): array
     {
+        $send = fn () => Http::withToken($apiKey)->timeout(30)->post(self::GROQ_URL, $this->groqPayload($messages));
+
         try {
-            $response = Http::withToken($apiKey)
-                ->timeout(30)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => config('services.groq.model'),
-                    'messages' => $messages,
-                    'temperature' => 0.7,
-                    'max_tokens' => 1200,
-                    'top_p' => 0.9,
-                ]);
+            $response = $send();
+
+            if ($response->status() === 429 && ($wait = $this->rateLimitWaitSeconds($response->header('retry-after'), $response->body())) !== null) {
+                usleep((int) ($wait * 1_000_000));
+                $response = $send();
+            }
         } catch (\Throwable $exception) {
             return $this->failedProviderResult('groq-'.$version, null, $exception->getMessage());
         }
 
         return $this->providerResult('groq-'.$version, $response);
+    }
+
+    /**
+     * Shared Groq request body. gpt-oss models are reasoning models: low effort keeps
+     * hidden reasoning tokens (which count against the per-minute token limit) small.
+     *
+     * @param  array<int, array{role: string, content: string}>  $messages
+     */
+    private function groqPayload(array $messages, bool $stream = false): array
+    {
+        $model = (string) config('services.groq.model', 'openai/gpt-oss-120b');
+
+        $payload = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => 0.7,
+            'max_tokens' => 1200,
+            'top_p' => 0.9,
+        ];
+
+        if (str_starts_with($model, 'openai/gpt-oss')) {
+            $payload['reasoning_effort'] = 'low';
+        }
+
+        if ($stream) {
+            $payload['stream'] = true;
+            $payload['stream_options'] = ['include_usage' => true];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Seconds to wait before retrying a rate-limited request, or null when the wait is too long
+     * (then we fall back immediately instead of keeping the student waiting).
+     */
+    private function rateLimitWaitSeconds(?string $retryAfter, string $body): ?float
+    {
+        $seconds = is_numeric($retryAfter) ? (float) $retryAfter : null;
+
+        if ($seconds === null && preg_match('/try again in ([0-9.]+)(ms|s)/i', $body, $m)) {
+            $seconds = strtolower($m[2]) === 'ms' ? (float) $m[1] / 1000 : (float) $m[1];
+        }
+
+        if ($seconds === null || $seconds > self::MAX_RATE_LIMIT_WAIT_SECONDS) {
+            return null;
+        }
+
+        return max(0.2, $seconds + 0.2);
     }
 
     public function groqApiKey(string $version): ?string
@@ -177,23 +231,33 @@ class AiProviderClient
         $fullContent = '';
         $totalTokens = 0;
 
+        $client = new GuzzleClient(['timeout' => 60]);
+        $send = fn () => $client->post(self::GROQ_URL, [
+            'stream' => true,
+            'headers' => [
+                'Authorization' => 'Bearer '.$apiKey,
+                'Content-Type' => 'application/json',
+            ],
+            'json' => $this->groqPayload($messages, stream: true),
+        ]);
+
         try {
-            $client = new GuzzleClient(['timeout' => 60]);
-            $response = $client->post('https://api.groq.com/openai/v1/chat/completions', [
-                'stream' => true,
-                'headers' => [
-                    'Authorization' => 'Bearer '.$apiKey,
-                    'Content-Type' => 'application/json',
-                ],
-                'json' => [
-                    'model' => config('services.groq.model', 'llama-3.3-70b-versatile'),
-                    'messages' => $messages,
-                    'temperature' => 0.7,
-                    'max_tokens' => 1200,
-                    'top_p' => 0.9,
-                    'stream' => true,
-                ],
-            ]);
+            try {
+                $response = $send();
+            } catch (ClientException $e) {
+                // Nothing has been streamed yet, so a short rate-limit wait + one retry is safe.
+                $rateLimited = $e->getResponse()->getStatusCode() === 429;
+                $wait = $rateLimited
+                    ? $this->rateLimitWaitSeconds($e->getResponse()->getHeaderLine('retry-after'), (string) $e->getResponse()->getBody())
+                    : null;
+
+                if ($wait === null) {
+                    throw $e;
+                }
+
+                usleep((int) ($wait * 1_000_000));
+                $response = $send();
+            }
         } catch (\Throwable $e) {
             return $this->failedProviderResult('groq-stream', null, $e->getMessage());
         }
@@ -233,8 +297,11 @@ class AiProviderClient
                     $onToken($token);
                 }
 
-                if (isset($parsed['usage']['total_tokens'])) {
-                    $totalTokens = (int) $parsed['usage']['total_tokens'];
+                // OpenAI-style `usage` (stream_options.include_usage) or Groq's `x_groq.usage`.
+                $usage = data_get($parsed, 'usage.total_tokens') ?? data_get($parsed, 'x_groq.usage.total_tokens');
+
+                if ($usage !== null) {
+                    $totalTokens = (int) $usage;
                 }
             }
         }

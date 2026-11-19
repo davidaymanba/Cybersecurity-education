@@ -271,7 +271,7 @@ class AiAgentServiceTest extends TestCase
 
             return str_contains($systemText, 'Name: Dana')
                 && str_contains($systemText, 'Current level: Beginner')
-                && str_contains($systemText, 'Guide Agent Scope');
+                && str_contains($systemText, 'Scope: Guide tab');
         });
     }
 

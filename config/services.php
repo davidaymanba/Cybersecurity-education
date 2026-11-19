@@ -44,7 +44,7 @@ return [
         'api_key' => env('GROQ_API_KEY'),
         'single_api_key' => env('GROQ_SINGLE_API_KEY') ?: env('GROQ_API_KEY'),
         'multi_api_key' => env('GROQ_MULTI_API_KEY') ?: env('GROQ_API_KEY'),
-        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-120b'),
     ],
 
     'ai' => [
