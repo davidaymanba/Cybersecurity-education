@@ -8,47 +8,64 @@ if (window.cyberLesson) {
     let activeAgent = window.cyberLesson.agent;
     const studentName = String(window.cyberLesson.userName || '').trim();
     const studentLevel = String(window.cyberLesson.userLevel || '').trim();
-    const helloLine = studentName ? `Hello ${studentName}!` : 'Hello!';
-    const levelLine = studentLevel ? `\nYour saved level: **${studentLevel}**.` : '';
+    // The chat starts in the page's language (production defaults to Arabic); after that the
+    // reply language follows whatever the student types.
+    const uiArabic = window.cyberLesson.locale === 'ar';
+    const t = (en, ar) => (uiArabic ? ar : en);
+    const helloLine = studentName ? t(`Hello ${studentName}!`, `أهلاً ${studentName}!`) : t('Hello!', 'أهلاً!');
+    const levelLine = studentLevel ? t(`\nYour saved level: **${studentLevel}**.`, `\nمستواك المحفوظ: **${studentLevel}**.`) : '';
+    const reply = (en, ar, labelEn, labelAr) => ({label: t(labelEn, labelAr), en, ar});
     const agentProfiles = {
         single_tutor: {
-            welcome: `${helloLine}\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.${levelLine}\n\nI can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.\nTell me what you want to work on.`,
-            placeholder: 'Ask Cyber Mentor...',
+            welcome: t(
+                `${helloLine}\n**I am Cyber Mentor**, your specialized cybersecurity study assistant.${levelLine}\n\nI can help you build a personalized study plan, explain security concepts, recommend approved lesson videos, and suggest safe practice.\nTell me what you want to work on.`,
+                `${helloLine}\n**أنا Cyber Mentor**، مساعدك المتخصص في دراسة الأمن السيبراني.${levelLine}\n\nأقدر أبني لك خطة مذاكرة تناسبك، وأشرح لك المفاهيم الأمنية، وأرشّح لك فيديوهات الدرس المعتمدة، وأقترح عليك تدريبات آمنة.\nوش تبغى نشتغل عليه؟`,
+            ),
+            placeholder: t('Ask Cyber Mentor...', 'اسأل Cyber Mentor...'),
             quickReplies: [
-                {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
-                {label: 'Explain topic', en: 'Explain a cybersecurity topic in simple terms.', ar: 'اشرح لي موضوعاً في الأمن السيبراني بطريقة بسيطة.'},
-                {label: 'Give resources', en: 'Share useful cybersecurity learning resources with links.', ar: 'اعطني مصادر مفيدة لتعلم الأمن السيبراني مع روابط.'},
-                {label: 'Quiz me', en: 'Quiz me with safe beginner cybersecurity questions.', ar: 'اختبرني بأسئلة آمنة للمبتدئين في الأمن السيبراني.'},
+                reply('I need a cybersecurity learning plan.', 'أحتاج خطة لتعلم الأمن السيبراني.', 'Create plan', 'خطة مذاكرة'),
+                reply('Explain a cybersecurity topic in simple terms.', 'اشرح لي موضوعاً في الأمن السيبراني بطريقة بسيطة.', 'Explain topic', 'اشرح موضوع'),
+                reply('Share useful cybersecurity learning resources with links.', 'اعطني مصادر مفيدة لتعلم الأمن السيبراني مع روابط.', 'Give resources', 'مصادر تعلم'),
+                reply('Quiz me with safe beginner cybersecurity questions.', 'اختبرني بأسئلة آمنة للمبتدئين في الأمن السيبراني.', 'Quiz me', 'اختبرني'),
             ],
         },
         navigation: {
-            welcome: `${helloLine}\n**Guide** is active.${levelLine}\n\nI only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.\nTell me your goal or ask for a plan.`,
-            placeholder: 'Ask for a plan, roadmap, or next lesson...',
+            welcome: t(
+                `${helloLine}\n**Guide** is active.${levelLine}\n\nI only help with study plans, roadmaps, schedules, goals, and choosing the next lesson.\nTell me your goal or ask for a plan.`,
+                `${helloLine}\n**المرشد** مفعّل.${levelLine}\n\nأساعدك في خطط المذاكرة، والمسارات، والجداول، والأهداف، واختيار الدرس الجاي.\nقل لي هدفك أو اطلب خطة.`,
+            ),
+            placeholder: t('Ask for a plan, roadmap, or next lesson...', 'اطلب خطة أو مسار أو الدرس الجاي...'),
             quickReplies: [
-                {label: 'Create plan', en: 'I need a cybersecurity learning plan.', ar: 'أحتاج خطة لتعلم الأمن السيبراني.'},
-                {label: 'Pick next lesson', en: 'What should I learn next in this course?', ar: 'ما الدرس التالي الذي يجب أن أتعلمه في هذا المسار؟'},
-                {label: 'Weekly schedule', en: 'Build me a weekly cybersecurity study schedule.', ar: 'ابنِ لي جدولاً أسبوعياً لتعلم الأمن السيبراني.'},
-                {label: 'Beginner roadmap', en: 'Create a beginner cybersecurity roadmap.', ar: 'اعمل لي خارطة طريق للمبتدئين في الأمن السيبراني.'},
+                reply('I need a cybersecurity learning plan.', 'أحتاج خطة لتعلم الأمن السيبراني.', 'Create plan', 'خطة مذاكرة'),
+                reply('What should I learn next in this course?', 'وش الدرس اللي أدرسه بعد هذا؟', 'Pick next lesson', 'الدرس الجاي'),
+                reply('Build me a weekly cybersecurity study schedule.', 'ابنِ لي جدولاً أسبوعياً لتعلم الأمن السيبراني.', 'Weekly schedule', 'جدول أسبوعي'),
+                reply('Create a beginner cybersecurity roadmap.', 'اعمل لي خارطة طريق للمبتدئين في الأمن السيبراني.', 'Beginner roadmap', 'مسار للمبتدئين'),
             ],
         },
         explanation: {
-            welcome: `${helloLine}\n**Tutor** is active.${levelLine}\n\nI only explain cybersecurity concepts, definitions, comparisons, and safe defensive examples.\nAsk me about a concept from the lesson.`,
-            placeholder: 'Ask about a cybersecurity concept...',
+            welcome: t(
+                `${helloLine}\n**Tutor** is active.${levelLine}\n\nI only explain cybersecurity concepts, definitions, comparisons, and safe defensive examples.\nAsk me about a concept from the lesson.`,
+                `${helloLine}\n**الشارح** مفعّل.${levelLine}\n\nأشرح لك مفاهيم الأمن السيبراني والتعريفات والمقارنات مع أمثلة دفاعية آمنة.\nاسألني عن أي مفهوم في الدرس.`,
+            ),
+            placeholder: t('Ask about a cybersecurity concept...', 'اسأل عن مفهوم في الأمن السيبراني...'),
             quickReplies: [
-                {label: 'Explain topic', en: 'Explain this lesson topic in simple terms.', ar: 'اشرح موضوع هذا الدرس بطريقة بسيطة.'},
-                {label: 'Give example', en: 'Give me a safe defensive example for this concept.', ar: 'اعطني مثالاً دفاعياً آمناً لهذا المفهوم.'},
-                {label: 'Compare concepts', en: 'Compare two cybersecurity concepts for me.', ar: 'قارن لي بين مفهومين في الأمن السيبراني.'},
-                {label: 'Check understanding', en: 'Check my understanding of this concept.', ar: 'اختبر فهمي لهذا المفهوم.'},
+                reply('Explain this lesson topic in simple terms.', 'اشرح موضوع هذا الدرس بطريقة بسيطة.', 'Explain topic', 'اشرح الدرس'),
+                reply('Give me a safe defensive example for this concept.', 'اعطني مثالاً دفاعياً آمناً لهذا المفهوم.', 'Give example', 'أعطني مثال'),
+                reply('Compare two cybersecurity concepts for me.', 'قارن لي بين مفهومين في الأمن السيبراني.', 'Compare concepts', 'قارن مفهومين'),
+                reply('Check my understanding of this concept.', 'اختبر فهمي لهذا المفهوم.', 'Check understanding', 'اختبر فهمي'),
             ],
         },
         video: {
-            welcome: `${helloLine}\n**Video** is active.${levelLine}\n\nI only recommend approved videos embedded in this lesson.\nAsk what to watch or what to focus on while watching.`,
-            placeholder: 'Ask for approved lesson videos...',
+            welcome: t(
+                `${helloLine}\n**Video** is active.${levelLine}\n\nI only recommend approved videos embedded in this lesson.\nAsk what to watch or what to focus on while watching.`,
+                `${helloLine}\n**الفيديو** مفعّل.${levelLine}\n\nأرشّح لك الفيديوهات المعتمدة في هذا الدرس فقط.\nاسألني وش تشاهد أو على وش تركّز وأنت تشاهد.`,
+            ),
+            placeholder: t('Ask for approved lesson videos...', 'اطلب فيديوهات الدرس المعتمدة...'),
             quickReplies: [
-                {label: 'Recommend videos', en: 'Recommend the approved videos for this lesson.', ar: 'رشح لي الفيديوهات المعتمدة لهذا الدرس.'},
-                {label: 'What to watch', en: 'Which approved video should I watch first?', ar: 'أي فيديو معتمد يجب أن أشاهده أولاً؟'},
-                {label: 'Focus notes', en: 'What should I focus on while watching the lesson video?', ar: 'على ماذا أركز أثناء مشاهدة فيديو الدرس؟'},
-                {label: 'After video', en: 'What should I do after watching the approved video?', ar: 'ماذا أفعل بعد مشاهدة الفيديو المعتمد؟'},
+                reply('Recommend the approved videos for this lesson.', 'رشح لي الفيديوهات المعتمدة لهذا الدرس.', 'Recommend videos', 'رشّح فيديوهات'),
+                reply('Which approved video should I watch first?', 'أي فيديو معتمد أشاهده أول؟', 'What to watch', 'وش أشاهد أول؟'),
+                reply('What should I focus on while watching the lesson video?', 'على وش أركز وأنا أشاهد فيديو الدرس؟', 'Focus notes', 'على وش أركز؟'),
+                reply('What should I do after watching the approved video?', 'وش أسوي بعد ما أشاهد الفيديو المعتمد؟', 'After video', 'بعد الفيديو'),
             ],
         },
     };
@@ -60,11 +77,11 @@ if (window.cyberLesson) {
     };
     const agentLabels = {
         single_tutor: 'Cyber Mentor',
-        navigation: 'Guide',
-        explanation: 'Tutor',
-        video: 'Video',
+        navigation: t('Guide', 'المرشد'),
+        explanation: t('Tutor', 'الشارح'),
+        video: t('Video', 'الفيديو'),
     };
-    let lastUserLanguage = 'en';
+    let lastUserLanguage = uiArabic ? 'ar' : 'en';
 
     const detectLanguage = (message) => /[\u0600-\u06FF]/.test(message) ? 'ar' : 'en';
 
@@ -232,7 +249,7 @@ if (window.cyberLesson) {
         currentProfile().quickReplies.forEach((reply) => {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-xs text-cyan-50 hover:border-cyan-300';
+            button.className = 'quick-reply rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-start text-xs text-cyan-50 hover:border-cyan-300';
             button.textContent = reply.label;
             button.addEventListener('click', () => {
                 sendMessage(lastUserLanguage === 'ar' ? reply.ar : reply.en);

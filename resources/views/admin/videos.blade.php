@@ -1,20 +1,19 @@
-@extends('layouts.app', ['title' => 'Manage Videos'])
+@extends('layouts.app', ['title' => __('messages.manage_videos')])
 
 @section('content')
 <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
 
     <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-            <p class="text-sm font-medium text-cyan-200">Admin content</p>
-            <h1 class="mt-1 text-3xl font-semibold tracking-tight">Video Resources</h1>
+            <p class="text-sm font-medium text-cyan-200">{{ __('messages.admin_content') }}</p>
+            <h1 class="mt-1 text-3xl font-semibold tracking-tight">{{ __('messages.video_resources') }}</h1>
             <p class="mt-2 max-w-2xl text-sm text-slate-300">
-                Add, edit, and approve YouTube videos that appear inside lesson pages.
-                Only approved videos are shown to students and recommended by the AI.
+                {{ __('messages.videos_lead') }}
             </p>
         </div>
         <div class="flex gap-3">
-            <a href="{{ route('admin.lessons') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">Lessons</a>
-            <a href="{{ route('admin.quizzes') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">Quizzes</a>
+            <a href="{{ route('admin.lessons') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">{{ __('messages.lessons') }}</a>
+            <a href="{{ route('admin.quizzes') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">{{ __('messages.quizzes') }}</a>
         </div>
     </div>
 
@@ -30,9 +29,9 @@
         @csrf
 
         <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Lesson</label>
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.lesson') }}</label>
             <select name="lesson_id" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-                <option value="">— choose lesson —</option>
+                <option value="">{{ __('messages.choose_lesson') }}</option>
                 @foreach($lessons as $lesson)
                     <option value="{{ $lesson->id }}" @selected(old('lesson_id') == $lesson->id)>{{ $lesson->title }}</option>
                 @endforeach
@@ -40,37 +39,37 @@
         </div>
 
         <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Video title</label>
-            <input name="title" value="{{ old('title') }}" placeholder="e.g. Introduction to Network Security"
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.video_title') }}</label>
+            <input name="title" value="{{ old('title') }}" placeholder="{{ __('messages.video_title_placeholder') }}"
                    class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
         </div>
 
         <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">YouTube ID</label>
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.youtube_id') }}</label>
             <input name="youtube_id" value="{{ old('youtube_id') }}" placeholder="dQw4w9WgXcQ"
                    class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white font-mono" required>
-            <p class="mt-1 text-xs text-slate-500">The part after <code>watch?v=</code> in the YouTube URL.</p>
+            <p class="mt-1 text-xs text-slate-500">{!! __('messages.youtube_id_help', ['code' => '<code>watch?v=</code>']) !!}</p>
         </div>
 
         <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Channel name</label>
-            <input name="channel_name" value="{{ old('channel_name') }}" placeholder="e.g. NetworkChuck"
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.channel_name') }}</label>
+            <input name="channel_name" value="{{ old('channel_name') }}" placeholder="{{ __('messages.channel_placeholder') }}"
                    class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
         </div>
 
         <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Description (optional)</label>
-            <input name="description" value="{{ old('description') }}" placeholder="Short note about the video"
+            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.description_optional') }}</label>
+            <input name="description" value="{{ old('description') }}" placeholder="{{ __('messages.video_description_placeholder') }}"
                    class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white">
         </div>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-6">
             <label class="inline-flex items-center gap-3 text-sm text-slate-200">
                 <input type="checkbox" name="approved" value="1" class="h-4 w-4 rounded border-white/20 bg-slate-950" checked>
-                Approved (visible to students and AI)
+                {{ __('messages.approved_visible') }}
             </label>
             <button class="rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-300">
-                Add video
+                {{ __('messages.add_video') }}
             </button>
         </div>
     </form>
@@ -93,7 +92,7 @@
                         </div>
                     </div>
                     <span class="inline-flex h-fit rounded-full px-3 py-1 text-xs font-semibold {{ $video->approved ? 'bg-emerald-400/15 text-emerald-100' : 'bg-amber-400/15 text-amber-100' }}">
-                        {{ $video->approved ? 'Approved' : 'Hidden' }}
+                        {{ $video->approved ? __('messages.approved') : __('messages.hidden') }}
                     </span>
                 </div>
 
@@ -118,33 +117,33 @@
                            class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-2" required>
 
                     <input name="description" value="{{ $video->description }}"
-                           placeholder="Description (optional)"
+                           placeholder="{{ __('messages.description_optional') }}"
                            class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-2">
 
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-6">
                         <label class="inline-flex items-center gap-3 text-sm">
                             <input type="checkbox" name="approved" value="1" class="h-4 w-4 rounded border-white/20 bg-slate-950" @checked($video->approved)>
-                            Approved
+                            {{ __('messages.approved') }}
                         </label>
                         <button class="rounded-lg bg-cyan-400 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-300">
-                            Save changes
+                            {{ __('messages.save_changes') }}
                         </button>
                     </div>
                 </form>
 
                 <form method="post" action="{{ route('admin.videos.delete', $video) }}"
                       class="mt-3 flex justify-end"
-                      onsubmit="return confirm('Delete this video?')">
+                      onsubmit="return confirm(@js(__('messages.confirm_delete_video')))">
                     @csrf
                     @method('delete')
                     <button class="rounded-lg border border-rose-300/30 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/10">
-                        Delete video
+                        {{ __('messages.delete_video') }}
                     </button>
                 </form>
             </article>
         @empty
             <div class="rounded-lg border border-white/10 bg-white/[0.08] p-6 text-sm text-slate-300">
-                No videos yet. Add one above.
+                {{ __('messages.no_videos') }}
             </div>
         @endforelse
     </div>

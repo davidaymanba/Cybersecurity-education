@@ -120,9 +120,9 @@ Tip: combine related questions into one message to get more out of your daily qu
     public function agentRedirectResponse(string $message, string $currentAgent, string $targetAgent): array
     {
         $agents = [
-            'navigation' => ['en' => 'Guide', 'ar' => 'Guide', 'scope_en' => 'plans, roadmaps, schedules, learning resources, and lesson navigation', 'scope_ar' => 'الخطط، المسارات، الجداول، مصادر التعلم، والتنقل بين الدروس'],
-            'explanation' => ['en' => 'Tutor', 'ar' => 'Tutor', 'scope_en' => 'cybersecurity concepts, definitions, comparisons, safe examples, and concept links', 'scope_ar' => 'شرح المفاهيم، التعاريف، المقارنات، الأمثلة الآمنة، وروابط المفاهيم'],
-            'video' => ['en' => 'Video', 'ar' => 'Video', 'scope_en' => 'approved videos embedded in this lesson', 'scope_ar' => 'الفيديوهات المعتمدة داخل هذا الدرس فقط'],
+            'navigation' => ['en' => 'Guide', 'ar' => 'المرشد', 'scope_en' => 'plans, roadmaps, schedules, learning resources, and lesson navigation', 'scope_ar' => 'الخطط، المسارات، الجداول، مصادر التعلم، والتنقل بين الدروس'],
+            'explanation' => ['en' => 'Tutor', 'ar' => 'الشارح', 'scope_en' => 'cybersecurity concepts, definitions, comparisons, safe examples, and concept links', 'scope_ar' => 'شرح المفاهيم، التعاريف، المقارنات، الأمثلة الآمنة، وروابط المفاهيم'],
+            'video' => ['en' => 'Video', 'ar' => 'الفيديو', 'scope_en' => 'approved videos embedded in this lesson', 'scope_ar' => 'الفيديوهات المعتمدة داخل هذا الدرس فقط'],
         ];
 
         $target = $agents[$targetAgent] ?? ['en' => 'the matching tab', 'ar' => 'التبويب المناسب'];

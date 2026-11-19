@@ -1,4 +1,4 @@
-@extends('layouts.app', ['title' => 'Reset Password'])
+@extends('layouts.app', ['title' => __('messages.reset_password')])
 
 @section('content')
 <section class="flex min-h-[calc(100vh-72px)] items-center justify-center px-4 py-14 sm:px-6">
@@ -11,8 +11,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>
                 </svg>
             </div>
-            <h1 class="text-3xl font-bold text-white">Set new password</h1>
-            <p class="mt-2 text-sm text-slate-400">Choose a strong password to secure your account.</p>
+            <h1 class="text-3xl font-bold text-white">{{ __('messages.set_new_password') }}</h1>
+            <p class="mt-2 text-sm text-slate-400">{{ __('messages.set_new_password_lead') }}</p>
         </div>
 
         @if(session('status'))
@@ -31,7 +31,7 @@
             <input type="hidden" name="token" value="{{ $token }}">
 
             <label class="block text-sm font-medium text-slate-300">
-                Email address
+                {{ __('messages.email_address') }}
                 <input name="email" type="email" value="{{ old('email', $email) }}"
                        autocomplete="email" required
                        class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-white
@@ -50,13 +50,13 @@
             @enderror
 
             <label class="mt-5 block text-sm font-medium text-slate-300">
-                New password
+                {{ __('messages.new_password') }}
                 <input name="password" type="password" autocomplete="new-password" required
                        class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-white
                               placeholder-slate-600 outline-none transition
                               focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30
                               @error('password') border-red-400/60 @enderror"
-                       placeholder="Minimum 8 characters">
+                       placeholder="{{ __('messages.min_8_chars') }}">
             </label>
             @error('password')
                 <p class="mt-2 flex items-center gap-1.5 text-sm text-red-400">
@@ -68,23 +68,23 @@
             @enderror
 
             <label class="mt-5 block text-sm font-medium text-slate-300">
-                Confirm new password
+                {{ __('messages.confirm_new_password') }}
                 <input name="password_confirmation" type="password" autocomplete="new-password" required
                        class="mt-2 w-full rounded-lg border border-white/10 bg-slate-950/70 px-4 py-3 text-white
                               placeholder-slate-600 outline-none transition
                               focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
-                       placeholder="Repeat your new password">
+                       placeholder="{{ __('messages.repeat_new_password') }}">
             </label>
 
             <button type="submit"
                     class="mt-6 w-full rounded-lg bg-cyan-400 px-4 py-3 font-semibold text-slate-950
                            transition hover:bg-cyan-300 active:scale-[0.98]">
-                Reset password
+                {{ __('messages.reset_password') }}
             </button>
 
             <p class="mt-5 text-center text-sm text-slate-500">
-                Remembered it?
-                <a href="{{ route('login') }}" class="text-cyan-400 hover:text-cyan-300 transition">Back to login</a>
+                {{ __('messages.remembered_it') }}
+                <a href="{{ route('login') }}" class="text-cyan-400 hover:text-cyan-300 transition">{{ __('messages.back_to_login') }}</a>
             </p>
         </form>
     </div>

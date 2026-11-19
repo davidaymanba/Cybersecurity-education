@@ -1,10 +1,10 @@
 <!doctype html>
-<html>
+<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Voice Assistant</title>
+    <title>{{ __('messages.voice_assistant') }}</title>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; padding: 1.5rem; }
         #controls { margin-bottom: 1rem; }

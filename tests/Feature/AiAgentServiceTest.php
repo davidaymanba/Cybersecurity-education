@@ -356,7 +356,7 @@ class AiAgentServiceTest extends TestCase
             'multi',
         );
 
-        $this->assertStringContainsString('تبويب Tutor', $response['message']);
+        $this->assertStringContainsString('تبويب الشارح', $response['message']);
         $this->assertStringNotContainsString('the matching tab', $response['message']);
         $this->assertStringNotContainsString('plans, roadmaps', $response['message']);
         Http::assertNothingSent();

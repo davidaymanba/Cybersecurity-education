@@ -5,7 +5,7 @@
     <div class="mb-6 rounded-xl border border-white/10 bg-white/10 p-5">
         <p class="text-sm text-cyan-200">{{ $quiz->lesson->title }}</p>
         <h1 class="mt-1 text-3xl font-semibold">{{ $quiz->title }}</h1>
-        <p class="mt-2 text-slate-300">Timer: <span id="quiz-timer">{{ gmdate('i:s', $remainingSeconds) }}</span></p>
+        <p class="mt-2 text-slate-300">{{ __('messages.timer') }}: <span id="quiz-timer">{{ gmdate('i:s', $remainingSeconds) }}</span></p>
     </div>
     <form id="quiz-form" method="post" action="{{ route('quizzes.submit', $quiz) }}" class="space-y-5">
         @csrf
@@ -19,7 +19,7 @@
                 </div>
             </fieldset>
         @endforeach
-        <button class="rounded-lg bg-emerald-400 px-5 py-3 font-semibold text-slate-950">Submit quiz</button>
+        <button class="rounded-lg bg-emerald-400 px-5 py-3 font-semibold text-slate-950">{{ __('messages.submit_quiz') }}</button>
     </form>
 </section>
 <script>window.quizSeconds = {{ $remainingSeconds }};</script>
