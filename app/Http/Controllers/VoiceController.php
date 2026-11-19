@@ -16,7 +16,7 @@ class VoiceController extends Controller
 
     public function show(): View
     {
-        return view('voice');
+        return view('voice', ['serverTts' => TextToSpeechService::isAvailable()]);
     }
 
     /**
@@ -48,6 +48,10 @@ class VoiceController extends Controller
             'voice'  => ['nullable', Rule::in(TextToSpeechService::ALLOWED_VOICES)],
             'format' => ['nullable', 'string', 'in:mp3,aiff'],
         ]);
+
+        if (! TextToSpeechService::isAvailable()) {
+            return response()->json(['ok' => false, 'error' => 'Server text-to-speech is not configured.'], 503);
+        }
 
         try {
             $out = $tts->generate($data['text'], $data['voice'] ?? null, $data['format'] ?? 'mp3');

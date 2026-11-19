@@ -20,6 +20,17 @@ class TextToSpeechService
 
     private const AUDIO_DIR = 'audio';
 
+    /**
+     * Whether server-side speech can be generated here: AWS Polly (SDK installed + credentials)
+     * or the macOS `say` fallback used in local development.
+     */
+    public static function isAvailable(): bool
+    {
+        $polly = config('services.polly.key') && config('services.polly.secret') && class_exists(\Aws\Polly\PollyClient::class);
+
+        return $polly || PHP_OS_FAMILY === 'Darwin';
+    }
+
     public function generate(string $text, ?string $voice = null, string $format = 'mp3'): array
     {
         $disk = Storage::disk('public');

@@ -1,0 +1,78 @@
+# Production stack for CyberLearn AI (cyber.codexai.systems).
+# Run from the deploy directory, with the production .env next to this file:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The web container joins the shared reverse-proxy network (PROXY_NETWORK) as
+# "cyberlearn-app"; nothing is published on the host. MySQL is internal only.
+# No queue worker or scheduler: the app dispatches no jobs and has no scheduled tasks.
+
+name: cyberlearn
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: cyberlearn-app:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file: .env
+    environment:
+      RUN_MIGRATIONS: "1"
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: ${APP_MEM_LIMIT:-1g}
+    cpus: ${APP_CPUS:-1.5}
+    networks:
+      internal: {}
+      proxy:
+        aliases: [cyberlearn-app]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    logging: *logging
+    command:
+      - --innodb-buffer-pool-size=${MYSQL_BUFFER_POOL:-192M}
+      - --max-connections=60
+      - --performance-schema=OFF
+    mem_limit: ${MYSQL_MEM_LIMIT:-640m}
+    cpus: ${MYSQL_CPUS:-1}
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql:/var/lib/mysql
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  storage:
+  mysql:
+
+networks:
+  internal: {}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}

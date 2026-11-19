@@ -96,3 +96,19 @@ php artisan view:cache
 Also set `TRUSTED_PROXIES` to your load balancer/reverse proxy IPs (if any), and run `php artisan storage:link` so generated TTS audio is reachable. Text-to-speech in production needs `composer require aws/aws-sdk-php` plus AWS credentials (the macOS `say` fallback is for local development only).
 
 Use HTTPS, configure a real mail driver for password reset emails, set `APP_ENV=production`, `APP_DEBUG=false`, and use MySQL or another managed relational database.
+
+## Production (VPS)
+
+Live at **https://cyber.codexai.systems**. The app runs in Docker on the VPS next to other projects:
+
+- Code and production `.env` live in `/opt/cyberlearn` (`docker-compose.prod.yml`: `app` = PHP 8.4 + Apache, `mysql` = MySQL 8.4, both with memory/CPU caps).
+- The shared Caddy reverse proxy (`rasd-caddy-1`, config `/opt/rasd/infrastructure/vps/Caddyfile`) terminates HTTPS and forwards `cyber.codexai.systems` to `cyberlearn-app:80` on the `rasd_default` network. Caddy runs with `admin off`, so Caddyfile changes need `docker restart rasd-caddy-1`, which briefly interrupts **every** site on the server.
+- Migrations run automatically on container start; logs: `docker compose -f docker-compose.prod.yml logs -f app`.
+
+Deploy a new version from your machine (uploads the working tree, rebuilds, waits for the health check):
+
+```bash
+deploy/deploy.sh
+```
+
+First-time setup only: `bash /opt/cyberlearn/deploy/server-init.sh` creates `.env` from `.env.production.example` with generated secrets; then fill in `GROQ_API_KEY` and the `SEED_*` passwords and run `docker compose -f docker-compose.prod.yml exec app php artisan db:seed --force`.

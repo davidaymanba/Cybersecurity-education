@@ -20,7 +20,9 @@
         <button id="stopBtn" disabled>إيقاف</button>
         <input id="manualInput" placeholder="أكتب رسالتك هنا" style="width:40%">
         <button id="sendBtn">إرسال</button>
-        <button id="serverTtsBtn">اختبار TTS على الخادم</button>
+        @if($serverTts)
+            <button id="serverTtsBtn">اختبار TTS على الخادم</button>
+        @endif
     </div>
 
     <p><strong>النص الملتقط:</strong></p>
@@ -103,7 +105,7 @@
         }
 
         // Server-side TTS test
-        document.getElementById('serverTtsBtn').addEventListener('click', async () => {
+        document.getElementById('serverTtsBtn')?.addEventListener('click', async () => {
             const text = document.getElementById('manualInput').value || transcriptEl.textContent || 'مرحبا';
             replyEl.textContent = 'جاري توليد ملف صوتي...';
             try {
