@@ -34,8 +34,9 @@ Route::middleware([SetLocale::class])->group(function () {
             'locale' => app()->getLocale(),
             'auth' => auth()->check(),
             'routes' => [
-                'register' => route('register'),
-                'login' => route('login'),
+                // Point to the redesigned auth previews so the whole flow can be tried in the new style.
+                'register' => route('preview.auth', 'register'),
+                'login' => route('preview.auth', 'login'),
                 'lessons' => route('lessons.index'),
                 'dashboard' => route('dashboard'),
                 'langAr' => route('lang.switch', 'ar'),
@@ -56,6 +57,32 @@ Route::middleware([SetLocale::class])->group(function () {
             ])->values(),
         ]]);
     })->name('preview');
+
+    // Design preview of the new login / register pages. The forms post to the real auth routes,
+    // so validation errors and old input come back here through the session.
+    Route::get('/preview/{page}', function (string $page) {
+        $errors = session('errors');
+
+        return view('preview', ['payload' => [
+            'locale' => app()->getLocale(),
+            'page' => $page,
+            'auth' => auth()->check(),
+            'csrf' => csrf_token(),
+            'status' => session('status'),
+            'errors' => $errors ? $errors->getBag('default')->toArray() : (object) [],
+            'old' => (object) collect(session()->getOldInput())->except(['password', 'password_confirmation', '_token'])->all(),
+            'routes' => [
+                'home' => route('preview'),
+                'login' => route('preview.auth', 'login'),
+                'register' => route('preview.auth', 'register'),
+                'loginStore' => route('login.store'),
+                'registerStore' => route('register.store'),
+                'forgot' => route('password.request'),
+                'langAr' => route('lang.switch', 'ar'),
+                'langEn' => route('lang.switch', 'en'),
+            ],
+        ]]);
+    })->whereIn('page', ['login', 'register'])->name('preview.auth');
 
     Route::middleware('guest')->group(function () {
         Route::get('/login', [AuthController::class, 'login'])->name('login');

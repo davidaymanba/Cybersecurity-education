@@ -71,7 +71,7 @@ export default function ClickSpark({ children, color = '#67e8f9', count = 10, ra
     }, [color, count, radius, duration]);
 
     return (
-        <div ref={wrapRef} className={`relative inline-block ${className}`}>
+        <div ref={wrapRef} className={`relative ${className || 'inline-block'}`}>
             {children}
             <canvas ref={canvasRef} className="pointer-events-none absolute" style={{ inset: -BLEED }} aria-hidden="true" />
         </div>

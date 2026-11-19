@@ -9,6 +9,7 @@ import TeamSection from './sections/TeamSection';
 import LessonsSection from './sections/LessonsSection';
 import FinalCTA from './sections/FinalCTA';
 import Footer from './sections/Footer';
+import AuthPage from './sections/AuthPage';
 
 export default function App({ data }) {
     const t = content[data.locale === 'en' ? 'en' : 'ar'];
@@ -19,6 +20,15 @@ export default function App({ data }) {
     useEffect(() => {
         document.fonts?.ready.then(() => ScrollTrigger.refresh());
     }, []);
+
+    if (data.page === 'login' || data.page === 'register') {
+        return (
+            <>
+                <CursorGlow />
+                <main className="relative z-10"><AuthPage t={t} data={data} /></main>
+            </>
+        );
+    }
 
     return (
         <>
