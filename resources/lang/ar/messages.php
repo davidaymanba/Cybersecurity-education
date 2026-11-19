@@ -201,4 +201,13 @@ return [
     'admin_video_added' => 'تمت إضافة الفيديو.',
     'admin_video_updated' => 'تم تحديث الفيديو.',
     'admin_video_deleted' => 'تم حذف الفيديو.',
+    'account' => 'حسابي',
+    'change_password' => 'تغيير كلمة المرور',
+    'current_password' => 'كلمة المرور الحالية',
+    'new_password' => 'كلمة المرور الجديدة',
+    'confirm_new_password' => 'تأكيد كلمة المرور الجديدة',
+    'save' => 'حفظ',
+    'password_changed' => 'تم تغيير كلمة المرور.',
+    'temporary_password_set' => 'كلمة المرور المؤقتة لـ :email هي: :password — أرسلها له بشكل خاص، ويقدر يغيّرها من صفحة حسابي.',
+    'confirm_reset_password' => 'تبغى تعطي هذا المستخدم كلمة مرور مؤقتة جديدة؟',
 ];

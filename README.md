@@ -112,3 +112,18 @@ deploy/deploy.sh
 ```
 
 First-time setup only: `bash /opt/cyberlearn/deploy/server-init.sh` creates `.env` from `.env.production.example` with generated secrets; then fill in `GROQ_API_KEY` and the `SEED_*` passwords and run `docker compose -f docker-compose.prod.yml exec app php artisan db:seed --force`.
+
+### Backups
+
+`deploy/backup.sh` dumps the MySQL database every night at 02:30 (cron file `/etc/cron.d/cyberlearn-backup`, installed once with `bash /opt/cyberlearn/deploy/install-backup-cron.sh`). Dumps are kept for 14 days in `/opt/cyberlearn-backups`; the log is `/var/log/cyberlearn-backup.log`. They live on the same server, so also keep an off-server copy (Hostinger VPS snapshots, or `scp root@187.126.26.74:/opt/cyberlearn-backups/*.sql.gz .`).
+
+Restore:
+
+```bash
+gunzip -c /opt/cyberlearn-backups/cyberlearn-YYYYmmdd-HHMMSS.sql.gz \
+  | docker exec -i cyberlearn-mysql-1 sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"'
+```
+
+### Passwords
+
+Users change their password from **Account** (`/account`). Until SMTP is configured, password-reset e-mails are not sent: an admin can give a student a temporary password from **Admin → Users → Reset password** (shown once to the admin).

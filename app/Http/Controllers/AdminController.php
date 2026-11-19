@@ -28,6 +28,20 @@ class AdminController extends Controller
         return view('admin.users', ['users' => User::with('role')->latest()->paginate(12)]);
     }
 
+    /**
+     * Give a user a temporary password (password-reset e-mails are not configured yet).
+     * The password is shown once to the admin, who passes it on to the student.
+     */
+    public function resetUserPassword(Request $request, User $user): RedirectResponse
+    {
+        abort_if($user->is($request->user()), 422, 'Use your account page to change your own password.');
+
+        $temporary = Str::password(12, letters: true, numbers: true, symbols: false);
+        $user->forceFill(['password' => $temporary, 'remember_token' => Str::random(60)])->save();
+
+        return back()->with('status', __('messages.temporary_password_set', ['email' => $user->email, 'password' => $temporary]));
+    }
+
     public function lessons(): View
     {
         return view('admin.lessons', [

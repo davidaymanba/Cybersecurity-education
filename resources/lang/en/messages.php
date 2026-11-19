@@ -164,4 +164,13 @@ return [
     'admin_video_added' => 'Video added.',
     'admin_video_updated' => 'Video updated.',
     'admin_video_deleted' => 'Video deleted.',
+    'account' => 'Account',
+    'change_password' => 'Change password',
+    'current_password' => 'Current password',
+    'new_password' => 'New password',
+    'confirm_new_password' => 'Confirm new password',
+    'save' => 'Save',
+    'password_changed' => 'Your password has been changed.',
+    'temporary_password_set' => 'Temporary password for :email: :password — share it privately; they can change it from the Account page.',
+    'confirm_reset_password' => 'Give this user a new temporary password?',
 ];

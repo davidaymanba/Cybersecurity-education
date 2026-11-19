@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Api\AiChatController;
 use App\Http\Controllers\Api\AnalyticsController;
@@ -48,6 +49,10 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::post('/app-api/progress', ProgressController::class)->middleware('throttle:60,1')->name('api.progress');
         Route::get('/app-api/dashboard', UserDashboardController::class)->name('api.dashboard');
 
+        // Account (change own password)
+        Route::get('/account', [AccountController::class, 'edit'])->name('account.edit');
+        Route::put('/account/password', [AccountController::class, 'updatePassword'])->middleware('throttle:5,1')->name('account.password');
+
         // Bookmarks
         Route::post('/bookmarks/{lesson}', [BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
         Route::get('/bookmarks', [BookmarkController::class, 'index'])->name('bookmarks.index');
@@ -61,6 +66,7 @@ Route::middleware([SetLocale::class])->group(function () {
     Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
         Route::get('/users', [AdminController::class, 'users'])->name('users');
+        Route::post('/users/{user}/reset-password', [AdminController::class, 'resetUserPassword'])->name('users.reset-password');
         Route::get('/lessons', [AdminController::class, 'lessons'])->name('lessons');
         Route::post('/lessons', [AdminController::class, 'storeLesson'])->name('lessons.store');
         Route::put('/lessons/{lesson}', [AdminController::class, 'updateLesson'])->name('lessons.update');
