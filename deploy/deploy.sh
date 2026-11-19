@@ -14,6 +14,12 @@ COMPOSE="docker compose -f docker-compose.prod.yml"
 
 cd "$(dirname "$0")/.."
 
+# Never ship a broken build: run the test suite first (skip with SKIP_TESTS=1).
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+  echo "→ Running tests"
+  php artisan test --compact || { echo "✗ Tests failed — deploy aborted." >&2; exit 1; }
+fi
+
 echo "→ Uploading code to $HOST:$DIR"
 git ls-files -co --exclude-standard -z \
   | COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata --null -T - -czf - \
