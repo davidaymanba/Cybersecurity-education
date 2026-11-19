@@ -9,6 +9,7 @@ use App\Models\Quiz;
 use App\Models\Section;
 use App\Models\User;
 use App\Models\VideoResource;
+use App\Support\HtmlSanitizer;
 use App\Services\AnalyticsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,12 +49,13 @@ class AdminController extends Controller
             'is_published' => ['nullable', 'boolean'],
         ]);
 
+        $data['content'] = HtmlSanitizer::clean($data['content']);
         $data['slug'] = Str::slug($data['title']).'-'.Str::lower(Str::random(5));
         $data['sort_order'] = $data['sort_order'] ?? 0;
         $data['is_published'] = $request->boolean('is_published', true);
         Lesson::create($data);
 
-        return back()->with('status', 'Lesson created.');
+        return back()->with('status', __('messages.admin_lesson_created'));
     }
 
     public function updateLesson(Request $request, Lesson $lesson): RedirectResponse
@@ -70,16 +72,17 @@ class AdminController extends Controller
         ]);
         $data['sort_order'] = $data['sort_order'] ?? 0;
         $data['is_published'] = $request->boolean('is_published');
+        $data['content'] = HtmlSanitizer::clean($data['content']);
         $lesson->update($data);
 
-        return back()->with('status', 'Lesson updated.');
+        return back()->with('status', __('messages.admin_lesson_updated'));
     }
 
     public function deleteLesson(Lesson $lesson): RedirectResponse
     {
         $lesson->delete();
 
-        return back()->with('status', 'Lesson deleted.');
+        return back()->with('status', __('messages.admin_lesson_deleted'));
     }
 
     public function quizzes(): View
@@ -116,7 +119,7 @@ class AdminController extends Controller
 
         $this->createQuestionWithAnswers($quiz, $data);
 
-        return back()->with('status', 'Quiz question saved.');
+        return back()->with('status', __('messages.admin_quiz_question_saved'));
     }
 
     public function updateQuiz(Request $request, Quiz $quiz): RedirectResponse
@@ -130,14 +133,14 @@ class AdminController extends Controller
 
         $quiz->update($data);
 
-        return back()->with('status', 'Quiz updated.');
+        return back()->with('status', __('messages.admin_quiz_updated'));
     }
 
     public function deleteQuiz(Quiz $quiz): RedirectResponse
     {
         $quiz->delete();
 
-        return back()->with('status', 'Quiz deleted.');
+        return back()->with('status', __('messages.admin_quiz_deleted'));
     }
 
     public function storeQuestion(Request $request, Quiz $quiz): RedirectResponse
@@ -145,7 +148,7 @@ class AdminController extends Controller
         $data = $this->validateQuestion($request);
         $this->createQuestionWithAnswers($quiz, $data);
 
-        return back()->with('status', 'Question added.');
+        return back()->with('status', __('messages.admin_question_added'));
     }
 
     public function updateQuestion(Request $request, Question $question): RedirectResponse
@@ -167,14 +170,14 @@ class AdminController extends Controller
             ])->save();
         }
 
-        return back()->with('status', 'Question updated.');
+        return back()->with('status', __('messages.admin_question_updated'));
     }
 
     public function deleteQuestion(Question $question): RedirectResponse
     {
         $question->delete();
 
-        return back()->with('status', 'Question deleted.');
+        return back()->with('status', __('messages.admin_question_deleted'));
     }
 
     private function validateQuestion(Request $request): array
@@ -236,7 +239,7 @@ class AdminController extends Controller
 
         VideoResource::create($data);
 
-        return back()->with('status', 'Video added.');
+        return back()->with('status', __('messages.admin_video_added'));
     }
 
     public function updateVideo(Request $request, VideoResource $video): RedirectResponse
@@ -253,13 +256,13 @@ class AdminController extends Controller
         $data['approved'] = $request->boolean('approved');
         $video->update($data);
 
-        return back()->with('status', 'Video updated.');
+        return back()->with('status', __('messages.admin_video_updated'));
     }
 
     public function deleteVideo(VideoResource $video): RedirectResponse
     {
         $video->delete();
 
-        return back()->with('status', 'Video deleted.');
+        return back()->with('status', __('messages.admin_video_deleted'));
     }
 }

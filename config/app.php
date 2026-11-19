@@ -82,6 +82,12 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    /*
+    | Comma-separated IPs/CIDRs of reverse proxies whose X-Forwarded-* headers
+    | may be trusted. Never use '*': it lets clients spoof their IP address.
+    */
+    'trusted_proxies' => array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))))),
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

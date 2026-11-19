@@ -91,7 +91,8 @@ class AiAgentServiceTest extends TestCase
         $this->assertSame("David,\n\nOpenAI fallback answer", $response['message']);
         $this->assertDatabaseHas('ai_interactions', [
             'user_id' => $user->id,
-            'response' => "David,\n\nOpenAI fallback answer",
+            // The raw (un-personalised) reply is stored so it can be reused as a cache hit.
+            'response' => 'OpenAI fallback answer',
             'tokens_used' => 42,
         ]);
 
@@ -491,7 +492,7 @@ class AiAgentServiceTest extends TestCase
         );
 
         $this->assertStringNotContainsString('I cannot help', $response['message']);
-        $this->assertStringContainsString('study-safe', $response['message']);
+        $this->assertStringContainsString('defensive way', $response['message']);
 
         Http::assertNothingSent();
     }

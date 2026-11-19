@@ -6,6 +6,10 @@
         <p class="text-sm text-cyan-200">{{ $result->quiz->lesson->title }}</p>
         <h1 class="mt-2 text-4xl font-semibold">Score {{ $result->score }}%</h1>
         <p class="mt-3 text-slate-300">{{ $result->correct_answers }} of {{ $result->total_questions }} correct</p>
+        @php($passed = $result->score >= $result->quiz->passing_score)
+        <p class="mt-2 text-sm font-semibold {{ $passed ? 'text-emerald-300' : 'text-amber-300' }}">
+            {{ $passed ? __('messages.quiz_passed') : __('messages.quiz_failed', ['score' => $result->quiz->passing_score]) }}
+        </p>
         <a href="{{ route('lessons.show', ['version' => 'single', 'lesson' => $result->quiz->lesson]) }}" class="mt-6 inline-flex rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950">Return to lesson</a>
     </div>
     <div class="mt-6 space-y-4">

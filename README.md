@@ -9,7 +9,7 @@ A Laravel 13 cybersecurity education platform for academic research comparing a 
 - Student dashboard, lesson library, lesson detail pages, sidebar lesson navigation, embedded approved YouTube videos, MCQ quizzes, timed quiz UI, and result pages.
 - Single AI Agent mode with one cybersecurity tutor.
 - Multi AI Agent mode with Navigation, Explanation, and Video Recommendation agents.
-- OpenAI chat integration through `App\Services\AiAgentService` with a local fallback when `OPENAI_API_KEY` is not configured.
+- AI chat through `App\Services\AiAgentService`: Groq (primary, streamed), OpenAI as a secondary fallback, and built-in local responses when no provider is configured.
 - Admin dashboard for users, lessons, quizzes, research analytics, quiz performance, and AI usage metrics.
 - Relational schema for roles, users, sections, lessons, videos, quizzes, questions, answers, quiz results, AI interactions, progress tracking, and bookmarks.
 
@@ -17,8 +17,10 @@ A Laravel 13 cybersecurity education platform for academic research comparing a 
 
 After seeding:
 
-- Admin: `admin@cyberlearn.test` / `password`
-- Student: `student@cyberlearn.test` / `password`
+- Admin: `admin@cyberlearn.test`
+- Student: `student@cyberlearn.test`
+
+Passwords come from `SEED_ADMIN_PASSWORD` / `SEED_STUDENT_PASSWORD`. In `local`/`testing` they default to `password`; in any other environment seeding aborts unless they are set.
 
 ## Local setup
 
@@ -53,14 +55,18 @@ Then run:
 php artisan migrate:fresh --seed
 ```
 
-## OpenAI configuration
+## AI configuration
 
 ```env
-OPENAI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here          # used by both conditions unless overridden
+GROQ_SINGLE_API_KEY=                # optional: key for the single-agent condition
+GROQ_MULTI_API_KEY=                 # optional: key for the multi-agent condition
+GROQ_MODEL=llama-3.3-70b-versatile
+OPENAI_API_KEY=                     # optional fallback
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-AI requests are rate limited on the browser endpoint with `throttle:20,1`. The service records prompt, response, agent type, platform version, latency, tokens, user, and lesson for research analytics.
+AI requests are rate limited with `throttle:20,1` plus a per-user daily limit. Cached answers are per user and only for context-free questions. Assistant turns sent back in the chat history are only accepted if they match a reply the server actually sent. The service records prompt, response, agent type, platform version, latency, tokens, user, and lesson for research analytics.
 
 ## Research design
 
@@ -84,5 +90,7 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 ```
+
+Also set `TRUSTED_PROXIES` to your load balancer/reverse proxy IPs (if any), and run `php artisan storage:link` so generated TTS audio is reachable. Text-to-speech in production needs `composer require aws/aws-sdk-php` plus AWS credentials (the macOS `say` fallback is for local development only).
 
 Use HTTPS, configure a real mail driver for password reset emails, set `APP_ENV=production`, `APP_DEBUG=false`, and use MySQL or another managed relational database.

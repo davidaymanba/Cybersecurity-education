@@ -18,7 +18,7 @@ class AiChatController extends Controller
     public function __invoke(Request $request, AiAgentService $agents): JsonResponse
     {
         $data   = $this->validatedChatData($request);
-        $lesson = isset($data['lesson_id']) ? Lesson::find($data['lesson_id']) : null;
+        $lesson = $this->visibleLesson($request, $data['lesson_id'] ?? null);
 
         return response()->json($agents->respond(
             $request->user(),
@@ -38,7 +38,7 @@ class AiChatController extends Controller
     public function stream(Request $request, AiAgentService $agents): StreamedResponse
     {
         $data   = $this->validatedChatData($request);
-        $lesson = isset($data['lesson_id']) ? Lesson::find($data['lesson_id']) : null;
+        $lesson = $this->visibleLesson($request, $data['lesson_id'] ?? null);
         $user   = $request->user();
 
         return response()->stream(function () use ($agents, $data, $lesson, $user): void {
@@ -139,5 +139,16 @@ class AiChatController extends Controller
             ->values()
             ->all();
     }
-}
 
+    /** Unpublished lessons must not leak into the AI context for students. */
+    private function visibleLesson(Request $request, mixed $lessonId): ?Lesson
+    {
+        $lesson = $lessonId ? Lesson::find($lessonId) : null;
+
+        if ($lesson && ! $lesson->is_published && ! $request->user()?->isAdmin()) {
+            return null;
+        }
+
+        return $lesson;
+    }
+}

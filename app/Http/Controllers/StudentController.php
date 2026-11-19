@@ -13,6 +13,9 @@ use Illuminate\View\View;
 
 class StudentController extends Controller
 {
+    /** Extra seconds allowed after the timer ends (network latency, slow submit). */
+    private const QUIZ_GRACE_SECONDS = 30;
+
     public function dashboard(): View
     {
         $user = auth()->user();
@@ -26,14 +29,16 @@ class StudentController extends Controller
     public function lessons(): View
     {
         return view('student.lessons', [
-            'sections' => Section::with('lessons.progress')->orderBy('sort_order')->get(),
+            'sections' => $this->sectionsWithPublishedLessons(),
         ]);
     }
 
     public function lesson(string $version, Lesson $lesson): View
     {
+        $this->ensureVisible($lesson);
+
         $lesson->load(['section', 'videos', 'quiz.questions.answers']);
-        $sections = Section::with('lessons')->orderBy('sort_order')->get();
+        $sections = $this->sectionsWithPublishedLessons();
         $progress = ProgressTracking::firstOrCreate([
             'user_id' => auth()->id(),
             'lesson_id' => $lesson->id,
@@ -42,17 +47,46 @@ class StudentController extends Controller
         return view('student.lesson', compact('lesson', 'sections', 'progress', 'version'));
     }
 
-    public function quiz(Quiz $quiz): View
+    public function quiz(Request $request, Quiz $quiz): View
     {
         $quiz->load('lesson', 'questions.answers');
+        $this->ensureVisible($quiz->lesson);
 
-        return view('student.quiz', compact('quiz'));
+        // The server owns the clock: remember when this attempt started.
+        $key = $this->quizSessionKey($quiz);
+        if (! $request->session()->has($key)) {
+            $request->session()->put($key, now()->timestamp);
+        }
+
+        $elapsed = now()->timestamp - (int) $request->session()->get($key);
+        $remainingSeconds = max(0, $quiz->timer_seconds - $elapsed);
+
+        // A stale attempt whose time ran out starts over with a fresh timer.
+        if ($remainingSeconds === 0) {
+            $request->session()->put($key, now()->timestamp);
+            $remainingSeconds = $quiz->timer_seconds;
+        }
+
+        return view('student.quiz', compact('quiz', 'remainingSeconds'));
     }
 
     public function submitQuiz(Request $request, Quiz $quiz): RedirectResponse
     {
-        $quiz->load('questions.answers');
-        $submitted = $request->input('answers', []);
+        $quiz->load('lesson', 'questions.answers');
+        $this->ensureVisible($quiz->lesson);
+
+        $key = $this->quizSessionKey($quiz);
+        $startedAt = $request->session()->pull($key);
+
+        if ($startedAt === null) {
+            return redirect()->route('quizzes.show', $quiz)->with('status', __('messages.quiz_start_first'));
+        }
+
+        if (now()->timestamp - (int) $startedAt > $quiz->timer_seconds + self::QUIZ_GRACE_SECONDS) {
+            return redirect()->route('quizzes.show', $quiz)->with('status', __('messages.quiz_time_expired'));
+        }
+
+        $submitted = (array) $request->input('answers', []);
         $correct = 0;
         $snapshot = [];
 
@@ -81,10 +115,14 @@ class StudentController extends Controller
             'completed_at' => now(),
         ]);
 
-        ProgressTracking::updateOrCreate(
-            ['user_id' => auth()->id(), 'lesson_id' => $quiz->lesson_id],
-            ['progress_percent' => 100, 'completed_at' => now()]
-        );
+        // A lesson only counts as completed when the student passes its quiz.
+        if ($score >= $quiz->passing_score) {
+            $progress = ProgressTracking::firstOrNew(['user_id' => auth()->id(), 'lesson_id' => $quiz->lesson_id]);
+            $progress->started_at ??= now();
+            $progress->progress_percent = 100;
+            $progress->completed_at ??= now();
+            $progress->save();
+        }
 
         return redirect()->route('results.show', $result);
     }
@@ -95,5 +133,22 @@ class StudentController extends Controller
         $result->load('quiz.lesson');
 
         return view('student.results', compact('result'));
+    }
+
+    private function ensureVisible(?Lesson $lesson): void
+    {
+        abort_unless($lesson && ($lesson->is_published || auth()->user()->isAdmin()), 404);
+    }
+
+    private function sectionsWithPublishedLessons()
+    {
+        return Section::with(['lessons' => fn ($query) => $query->where('is_published', true)])
+            ->orderBy('sort_order')
+            ->get();
+    }
+
+    private function quizSessionKey(Quiz $quiz): string
+    {
+        return "quiz_started.{$quiz->id}";
     }
 }

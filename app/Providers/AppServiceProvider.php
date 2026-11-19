@@ -2,9 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,9 +20,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Set application locale from session (if available) and share with views
-        $locale = session('locale', config('app.locale'));
-        App::setLocale($locale);
-        View::share('currentLocale', $locale);
+        // Only trust explicitly configured reverse proxies (see config/app.php).
+        $proxies = config('app.trusted_proxies', []);
+        if ($proxies !== []) {
+            TrustProxies::at($proxies);
+        }
+
+        // The locale is resolved per request from the session in App\Http\Middleware\SetLocale.
     }
 }

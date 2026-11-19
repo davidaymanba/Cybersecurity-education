@@ -7,6 +7,7 @@ use App\Services\TextToSpeechService;
 use App\Traits\DetectsArabic;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class VoiceController extends Controller
@@ -44,7 +45,7 @@ class VoiceController extends Controller
     {
         $data = $request->validate([
             'text'   => ['required', 'string', 'max:3000'],
-            'voice'  => ['nullable', 'string', 'max:40'],
+            'voice'  => ['nullable', Rule::in(TextToSpeechService::ALLOWED_VOICES)],
             'format' => ['nullable', 'string', 'in:mp3,aiff'],
         ]);
 

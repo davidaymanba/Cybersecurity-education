@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Api\AiChatController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\ProgressController;
+use App\Http\Controllers\Api\UserDashboardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\StudentController;
@@ -21,13 +22,13 @@ Route::middleware([SetLocale::class])->group(function () {
 
     Route::middleware('guest')->group(function () {
         Route::get('/login', [AuthController::class, 'login'])->name('login');
-        Route::post('/login', [AuthController::class, 'authenticate'])->name('login.store');
+        Route::post('/login', [AuthController::class, 'authenticate'])->middleware('throttle:5,1')->name('login.store');
         Route::get('/register', [AuthController::class, 'register'])->name('register');
-        Route::post('/register', [AuthController::class, 'store'])->name('register.store');
+        Route::post('/register', [AuthController::class, 'store'])->middleware('throttle:5,1')->name('register.store');
         Route::get('/forgot-password', [AuthController::class, 'forgot'])->name('password.request');
-        Route::post('/forgot-password', [AuthController::class, 'sendReset'])->name('password.email');
+        Route::post('/forgot-password', [AuthController::class, 'sendReset'])->middleware('throttle:3,1')->name('password.email');
         Route::get('/reset-password/{token}', [AuthController::class, 'showReset'])->name('password.reset');
-        Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+        Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
     });
 
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -44,7 +45,8 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::post('/cyber-bot', AiChatController::class)->middleware('throttle:20,1')->name('cyber.bot');
         Route::post('/app-api/ai/chat', AiChatController::class)->middleware('throttle:20,1')->name('api.ai.chat');
         Route::post('/app-api/ai/chat/stream', [AiChatController::class, 'stream'])->middleware('throttle:20,1')->name('api.ai.chat.stream');
-        Route::post('/app-api/progress', ProgressController::class)->name('api.progress');
+        Route::post('/app-api/progress', ProgressController::class)->middleware('throttle:60,1')->name('api.progress');
+        Route::get('/app-api/dashboard', UserDashboardController::class)->name('api.dashboard');
 
         // Bookmarks
         Route::post('/bookmarks/{lesson}', [BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
@@ -80,8 +82,7 @@ Route::middleware([SetLocale::class])->group(function () {
 
     // Language switcher (stores locale in session)
     Route::get('lang/{lang}', function ($lang) {
-        $available = ['en', 'ar'];
-        if (in_array($lang, $available)) {
+        if (in_array($lang, SetLocale::SUPPORTED, true)) {
             session(['locale' => $lang]);
         }
 

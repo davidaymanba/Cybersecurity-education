@@ -39,7 +39,7 @@
                 <span id="bookmark-label">Bookmark</span>
             </button>
         </div>
-        <div class="prose prose-invert max-w-none prose-pre:bg-slate-950">{!! $lesson->content !!}</div>
+        <div class="prose prose-invert max-w-none prose-pre:bg-slate-950">{!! \App\Support\HtmlSanitizer::clean($lesson->content) !!}</div>
         @if($lesson->code_examples)
             @foreach($lesson->code_examples as $example)
                 <pre class="mt-5 overflow-x-auto rounded-lg border border-white/10 bg-slate-950 p-4 text-sm text-cyan-50"><code>{{ $example }}</code></pre>

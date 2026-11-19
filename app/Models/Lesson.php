@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +31,18 @@ class Lesson extends Model
     public function videos(): HasMany
     {
         return $this->hasMany(VideoResource::class);
+    }
+
+    /**
+     * Approved videos for this lesson, reusing the eager-loaded relation when present.
+     */
+    public function approvedVideoList(): Collection
+    {
+        if ($this->relationLoaded('videos')) {
+            return $this->videos->where('approved', true)->values();
+        }
+
+        return $this->videos()->where('approved', true)->get();
     }
 
     public function quiz(): HasOne

@@ -20,16 +20,19 @@ class DatabaseSeeder extends Seeder
         $adminRole = Role::firstOrCreate(['name' => 'admin'], ['label' => 'Admin']);
         $studentRole = Role::firstOrCreate(['name' => 'student'], ['label' => 'Student']);
 
+        $adminPassword = $this->demoPassword('SEED_ADMIN_PASSWORD');
+        $studentPassword = $this->demoPassword('SEED_STUDENT_PASSWORD');
+
         User::firstOrCreate(['email' => 'admin@cyberlearn.test'], [
             'role_id' => $adminRole->id,
             'name' => 'Research Admin',
-            'password' => 'password',
+            'password' => $adminPassword,
         ]);
 
         User::firstOrCreate(['email' => 'student@cyberlearn.test'], [
             'role_id' => $studentRole->id,
             'name' => 'Demo Student',
-            'password' => 'password',
+            'password' => $studentPassword,
         ]);
 
         $content = [
@@ -116,5 +119,24 @@ class DatabaseSeeder extends Seeder
         foreach ($answers as $index => $answer) {
             Answer::create(['question_id' => $question->id, 'answer' => $answer, 'is_correct' => $index === $correctIndex]);
         }
+    }
+
+    /**
+     * Demo passwords come from the environment. The well-known 'password' default is
+     * only allowed in local/testing; anywhere else seeding aborts if none is set.
+     */
+    private function demoPassword(string $envKey): string
+    {
+        $password = (string) env($envKey, '');
+
+        if ($password !== '') {
+            return $password;
+        }
+
+        if (app()->environment('local', 'testing')) {
+            return 'password';
+        }
+
+        throw new \RuntimeException("Set {$envKey} in .env before seeding a non-local environment.");
     }
 }
