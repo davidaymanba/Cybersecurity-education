@@ -1,5 +1,0 @@
-@import 'tailwindcss';
-@import './tokens.css';
-
-@source '../js/preview/**/*.{js,jsx}';
-@source '../views/preview.blade.php';

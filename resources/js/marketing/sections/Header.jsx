@@ -35,7 +35,7 @@ export default function Header({ t, data }) {
                 </nav>
 
                 <div className="flex items-center gap-2">
-                    <a href={isArabic ? data.routes.langEn : data.routes.langAr} className="grid h-9 w-9 place-items-center rounded-lg text-sm text-slate-400 ring-1 ring-white/10 transition hover:text-white" aria-label="language">
+                    <a href={isArabic ? data.routes.langEn : data.routes.langAr} className="grid h-9 w-9 place-items-center rounded-lg text-sm text-slate-400 ring-1 ring-white/10 transition hover:text-white" lang={isArabic ? "en" : "ar"} aria-label={isArabic ? "English" : "العربية"}>
                         {t.nav.lang}
                     </a>
                     {data.auth ? (

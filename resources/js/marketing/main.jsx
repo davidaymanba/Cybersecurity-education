@@ -11,4 +11,4 @@ const data = {
     ...(window.__CYBERLEARN__ || {}),
 };
 
-createRoot(document.getElementById('preview-root')).render(<App data={data} />);
+createRoot(document.getElementById('marketing-root')).render(<App data={data} />);

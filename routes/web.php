@@ -11,78 +11,17 @@ use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Middleware\SetLocale;
-use App\Models\Lesson;
+use App\Support\MarketingPage;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 
 Route::middleware([SetLocale::class])->group(function () {
 
-    Route::get('/', fn () => view('landing', [
-        'lessons' => Schema::hasTable('lessons') ? Lesson::take(3)->get() : collect(),
-    ]))->name('landing');
+    Route::get('/', fn () => MarketingPage::landing())->name('landing');
 
-    // Design preview of the new landing page (GSAP + Lenis + React islands). Not linked anywhere yet.
-    Route::get('/preview', function () {
-        $hasTables = Schema::hasTable('lessons');
-        $t = fn ($value) => \App\Support\LocalizedText::get($value);
-
-        $lessons = $hasTables
-            ? Lesson::with('section')->where('is_published', true)->orderBy('sort_order')->take(6)->get()
-            : collect();
-
-        return view('preview', ['payload' => [
-            'locale' => app()->getLocale(),
-            'auth' => auth()->check(),
-            'routes' => [
-                // Point to the redesigned auth previews so the whole flow can be tried in the new style.
-                'register' => route('preview.auth', 'register'),
-                'login' => route('preview.auth', 'login'),
-                'lessons' => route('lessons.index'),
-                'dashboard' => route('dashboard'),
-                'langAr' => route('lang.switch', 'ar'),
-                'langEn' => route('lang.switch', 'en'),
-            ],
-            'stats' => [
-                'lessons' => $hasTables ? Lesson::where('is_published', true)->count() : 0,
-                'quizzes' => $hasTables ? \App\Models\Quiz::count() : 0,
-                'videos' => $hasTables ? \App\Models\VideoResource::where('approved', true)->count() : 0,
-                'agents' => 4,
-            ],
-            'lessons' => $lessons->map(fn ($lesson) => [
-                'title' => $t($lesson->title),
-                'summary' => $t($lesson->summary),
-                'difficulty' => $t($lesson->difficulty),
-                'minutes' => $lesson->duration_minutes,
-                'section' => $t($lesson->section?->title),
-            ])->values(),
-        ]]);
-    })->name('preview');
-
-    // Design preview of the new login / register pages. The forms post to the real auth routes,
-    // so validation errors and old input come back here through the session.
-    Route::get('/preview/{page}', function (string $page) {
-        $errors = session('errors');
-
-        return view('preview', ['payload' => [
-            'locale' => app()->getLocale(),
-            'page' => $page,
-            'auth' => auth()->check(),
-            'csrf' => csrf_token(),
-            'status' => session('status'),
-            'errors' => $errors ? $errors->getBag('default')->toArray() : (object) [],
-            'old' => (object) collect(session()->getOldInput())->except(['password', 'password_confirmation', '_token'])->all(),
-            'routes' => [
-                'home' => route('preview'),
-                'login' => route('preview.auth', 'login'),
-                'register' => route('preview.auth', 'register'),
-                'loginStore' => route('login.store'),
-                'registerStore' => route('register.store'),
-                'forgot' => route('password.request'),
-                'langAr' => route('lang.switch', 'ar'),
-                'langEn' => route('lang.switch', 'en'),
-            ],
-        ]]);
-    })->whereIn('page', ['login', 'register'])->name('preview.auth');
+    // The redesign was reviewed under /preview; keep old links working.
+    Route::permanentRedirect('/preview', '/')->name('preview');
+    Route::get('/preview/{page}', fn (string $page) => redirect()->route($page, status: 301))
+        ->whereIn('page', ['login', 'register'])->name('preview.auth');
 
     Route::middleware('guest')->group(function () {
         Route::get('/login', [AuthController::class, 'login'])->name('login');

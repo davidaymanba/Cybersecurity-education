@@ -29,7 +29,7 @@ function Field({ name, label, error, isRtl, children, ...input }) {
                     style={input.dir === 'ltr' ? { textAlign: isRtl ? 'right' : 'left' } : undefined}
                     {...input}
                 />
-                <label htmlFor={name} className="pointer-events-none absolute start-4 top-4 text-sm text-slate-500 transition-all duration-200 peer-focus:top-2 peer-focus:text-[11px] peer-focus:text-signal peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:text-[11px]">
+                <label htmlFor={name} className="pointer-events-none absolute start-4 top-4 text-sm text-slate-400 transition-all duration-200 peer-focus:top-2 peer-focus:text-[11px] peer-focus:text-signal peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:text-[11px]">
                     {label}
                 </label>
                 {children}
@@ -46,13 +46,14 @@ export default function AuthPage({ t, data }) {
     const tabsRef = useRef(null);
     const indicatorRef = useRef(null);
     const old = data.old || {};
-    const [page, setPage] = useState(data.page === 'register' ? 'register' : 'login');
+    const [page, setPage] = useState(['register', 'forgot', 'reset'].includes(data.page) ? data.page : 'login');
+    const isTabbed = page === 'login' || page === 'register';
     const [errors, setErrors] = useState(data.errors || {});
     const [busy, setBusy] = useState(false);
     const [showPw, setShowPw] = useState(false);
     const [form, setForm] = useState({
         name: old.name || '',
-        email: old.email || '',
+        email: old.email || data.email || '',
         password: '',
         password_confirmation: '',
         learning_level: old.learning_level || 'Beginner',
@@ -68,9 +69,15 @@ export default function AuthPage({ t, data }) {
     const emailOk = EMAIL.test(form.email);
     const { score } = scorePassword(form.password);
     const passwordsMatch = form.password_confirmation !== '' && form.password === form.password_confirmation;
-    const unlocked = page === 'login'
-        ? emailOk && form.password.length >= 8
-        : form.name.trim().length > 1 && emailOk && form.password.length >= 8 && passwordsMatch && score >= 2;
+    const unlocked = {
+        login: emailOk && form.password.length >= 8,
+        register: form.name.trim().length > 1 && emailOk && form.password.length >= 8 && passwordsMatch && score >= 2,
+        forgot: emailOk,
+        reset: emailOk && form.password.length >= 8 && passwordsMatch,
+    }[page];
+    const action = { login: data.routes.loginStore, register: data.routes.registerStore, forgot: data.routes.forgotStore, reset: data.routes.resetStore }[page];
+    const withPassword = page !== 'forgot';
+    const confirming = page === 'register' || page === 'reset';
 
     const levelLabel = A.levels[form.learning_level][0];
     const logLines = A.log[page].map((line) => line.replace('{level}', levelLabel));
@@ -97,6 +104,7 @@ export default function AuthPage({ t, data }) {
     // Sliding tab indicator.
     useLayoutEffect(() => {
         const tabs = tabsRef.current;
+        if (!tabs) return;
         const active = tabs.querySelector(`[data-tab="${page}"]`);
         const box = tabs.getBoundingClientRect();
         const rect = active.getBoundingClientRect();
@@ -105,10 +113,10 @@ export default function AuthPage({ t, data }) {
 
     // Browser back/forward between the two previews.
     useEffect(() => {
-        const onPop = () => setPage(window.location.pathname.endsWith('/register') ? 'register' : 'login');
+        const onPop = () => { if (isTabbed) setPage(window.location.pathname.endsWith('/register') ? 'register' : 'login'); };
         window.addEventListener('popstate', onPop);
         return () => window.removeEventListener('popstate', onPop);
-    }, []);
+    }, [isTabbed]);
 
     const switchTo = (next) => {
         if (next === page) return;
@@ -139,7 +147,7 @@ export default function AuthPage({ t, data }) {
                         <span className="font-semibold text-white" dir="ltr">CyberLearn<span className="text-signal">.AI</span></span>
                     </a>
                     <div className="flex items-center gap-2 text-sm">
-                        <a href={isRtl ? data.routes.langEn : data.routes.langAr} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 ring-1 ring-white/10 hover:text-white">{t.nav.lang}</a>
+                        <a href={isRtl ? data.routes.langEn : data.routes.langAr} lang={isRtl ? "en" : "ar"} aria-label={isRtl ? "English" : "العربية"} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 ring-1 ring-white/10 hover:text-white">{t.nav.lang}</a>
                         <a href={data.routes.home} className="rounded-lg px-3 py-2 text-slate-400 hover:text-white">{A.back}</a>
                     </div>
                 </div>
@@ -147,54 +155,61 @@ export default function AuthPage({ t, data }) {
                 <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
                     <div className="auth-item mb-8 lg:hidden"><div className="mx-auto w-28"><LockMini unlocked={unlocked} /></div></div>
 
-                    <div ref={tabsRef} className="auth-item relative mb-8 grid grid-cols-2 rounded-xl bg-white/[0.04] p-1 ring-1 ring-white/10">
-                        <span ref={indicatorRef} className="absolute inset-y-1 rounded-lg bg-white shadow-lg" style={{ left: 4, right: 'auto', width: 0 }} />
-                        {['login', 'register'].map((key) => (
-                            <button key={key} type="button" data-tab={key} onClick={() => switchTo(key)}
-                                className={`relative z-10 rounded-lg py-2.5 text-sm font-semibold transition-colors duration-300 ${page === key ? 'text-void' : 'text-slate-400 hover:text-white'}`}>
-                                {A.tabs[key]}
-                            </button>
-                        ))}
-                    </div>
+                    {isTabbed && (
+                        <div ref={tabsRef} className="auth-item relative mb-8 grid grid-cols-2 rounded-xl bg-white/[0.04] p-1 ring-1 ring-white/10">
+                            <span ref={indicatorRef} className="absolute inset-y-1 rounded-lg bg-white shadow-lg" style={{ left: 4, right: 'auto', width: 0 }} />
+                            {['login', 'register'].map((key) => (
+                                <button key={key} type="button" data-tab={key} onClick={() => switchTo(key)} aria-pressed={page === key}
+                                    className={`relative z-10 rounded-lg py-2.5 text-sm font-semibold transition-colors duration-300 ${page === key ? 'text-void' : 'text-slate-400 hover:text-white'}`}>
+                                    {A.tabs[key]}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     <h1 className="auth-item text-3xl font-bold text-white sm:text-4xl">{copy.title}</h1>
                     <p className="auth-item mt-3 leading-7 text-slate-400">{copy.lead}</p>
 
-                    {data.status && <div className="auth-item mt-6 rounded-xl border border-safe/30 bg-safe/10 px-4 py-3 text-sm text-safe">{data.status}</div>}
+                    {data.status && <div role="status" className="auth-item mt-6 rounded-xl border border-safe/30 bg-safe/10 px-4 py-3 text-sm leading-6 text-safe">{data.status}</div>}
 
-                    <form method="post" action={page === 'login' ? data.routes.loginStore : data.routes.registerStore} onSubmit={() => setBusy(true)} className="mt-8 space-y-4" noValidate={false}>
+                    <form method="post" action={action} onSubmit={() => setBusy(true)} className="mt-8 space-y-4">
                         <input type="hidden" name="_token" value={data.csrf} />
+                        {page === 'reset' && <input type="hidden" name="token" value={data.token || ''} />}
 
                         {page === 'register' && (
                             <Field name="name" label={A.fields.name} value={form.name} onChange={set('name')} autoComplete="name" required maxLength={120} error={err('name')} isRtl={isRtl} />
                         )}
-                        <Field name="email" type="email" label={A.fields.email} value={form.email} onChange={set('email')} autoComplete="email" required dir="ltr" error={err('email')} isRtl={isRtl} />
-                        <Field name="password" type={showPw ? 'text' : 'password'} label={A.fields.password} value={form.password} onChange={set('password')} autoComplete={page === 'login' ? 'current-password' : 'new-password'} required minLength={page === 'register' ? 8 : undefined} dir="ltr" error={err('password')} isRtl={isRtl}>
-                            {eye}
-                        </Field>
+                        <Field name="email" type="email" label={A.fields.email} value={form.email} onChange={set('email')} autoComplete={page === 'reset' ? 'username' : 'email'} required dir="ltr" error={err('email')} isRtl={isRtl} />
+                        {withPassword && (
+                            <Field name="password" type={showPw ? 'text' : 'password'} label={A.fields.password} value={form.password} onChange={set('password')} autoComplete={page === 'login' ? 'current-password' : 'new-password'} required minLength={page === 'login' ? undefined : 8} dir="ltr" error={err('password')} isRtl={isRtl}>
+                                {eye}
+                            </Field>
+                        )}
 
-                        {page === 'register' && (
+                        {confirming && (
                             <>
                                 <Field name="password_confirmation" type={showPw ? 'text' : 'password'} label={A.fields.confirm} value={form.password_confirmation} onChange={set('password_confirmation')} autoComplete="new-password" required dir="ltr" isRtl={isRtl} />
                                 {form.password_confirmation && (
-                                    <p className={`auth-item -mt-2 text-xs ${passwordsMatch ? 'text-safe' : 'text-red-300'}`}>{passwordsMatch ? `✓ ${A.strength.match}` : A.strength.mismatch}</p>
+                                    <p className={`auth-item -mt-2 text-xs ${passwordsMatch ? 'text-safe' : 'text-red-300'}`} aria-live="polite">{passwordsMatch ? `✓ ${A.strength.match}` : A.strength.mismatch}</p>
                                 )}
                                 <div className="auth-item"><PasswordStrength password={form.password} t={A.strength} /></div>
-
-                                <fieldset className="auth-item">
-                                    <legend className="mb-2 text-sm text-slate-400">{A.fields.level}</legend>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {Object.entries(A.levels).map(([value, [label, hint]]) => (
-                                            <label key={value} className={`cursor-pointer rounded-xl p-3 text-center ring-1 transition ${form.learning_level === value ? 'bg-signal/10 ring-signal/60' : 'bg-white/[0.03] ring-white/10 hover:ring-white/25'}`}>
-                                                <input type="radio" name="learning_level" value={value} checked={form.learning_level === value} onChange={set('learning_level')} className="sr-only" />
-                                                <span className={`block text-sm font-semibold ${form.learning_level === value ? 'text-signal' : 'text-white'}`}>{label}</span>
-                                                <span className="mt-0.5 block text-[11px] text-slate-500">{hint}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                    {err('learning_level') && <p className="mt-1.5 text-xs text-red-300">{err('learning_level')}</p>}
-                                </fieldset>
                             </>
+                        )}
+
+                        {page === 'register' && (
+                            <fieldset className="auth-item">
+                                <legend className="mb-2 text-sm text-slate-400">{A.fields.level}</legend>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {Object.entries(A.levels).map(([value, [label, hint]]) => (
+                                        <label key={value} className={`cursor-pointer rounded-xl p-3 text-center ring-1 transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal ${form.learning_level === value ? 'bg-signal/10 ring-signal/60' : 'bg-white/[0.03] ring-white/10 hover:ring-white/25'}`}>
+                                            <input type="radio" name="learning_level" value={value} checked={form.learning_level === value} onChange={set('learning_level')} className="sr-only" />
+                                            <span className={`block text-sm font-semibold ${form.learning_level === value ? 'text-signal' : 'text-white'}`}>{label}</span>
+                                            <span className="mt-0.5 block text-[11px] text-slate-400">{hint}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {err('learning_level') && <p className="mt-1.5 text-xs text-red-300">{err('learning_level')}</p>}
+                            </fieldset>
                         )}
 
                         {page === 'login' && (
@@ -218,10 +233,18 @@ export default function AuthPage({ t, data }) {
                         </div>
                     </form>
 
-                    <p className="auth-item mt-8 text-center text-sm text-slate-500">
-                        {copy.switch}{' '}
-                        <button type="button" onClick={() => switchTo(page === 'login' ? 'register' : 'login')} className="font-semibold text-signal hover:underline">{copy.switchCta}</button>
-                    </p>
+                    {page === 'forgot' && <p className="auth-item mt-6 rounded-xl bg-white/[0.03] px-4 py-3 text-sm leading-6 text-slate-400 ring-1 ring-white/10">{copy.hint}</p>}
+
+                    {isTabbed ? (
+                        <p className="auth-item mt-8 text-center text-sm text-slate-400">
+                            {copy.switch}{' '}
+                            <button type="button" onClick={() => switchTo(page === 'login' ? 'register' : 'login')} className="font-semibold text-signal hover:underline">{copy.switchCta}</button>
+                        </p>
+                    ) : (
+                        <p className="auth-item mt-8 text-center text-sm">
+                            <a href={data.routes.login} className="font-semibold text-signal hover:underline">{copy.back}</a>
+                        </p>
+                    )}
                 </div>
             </div>
 

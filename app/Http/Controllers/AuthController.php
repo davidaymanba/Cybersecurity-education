@@ -8,13 +8,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
+use App\Support\MarketingPage;
 use Illuminate\View\View;
 
 class AuthController extends Controller
 {
     public function login(): View
     {
-        return view('auth.login');
+        return MarketingPage::auth('login');
     }
 
     public function authenticate(Request $request): RedirectResponse
@@ -35,7 +36,7 @@ class AuthController extends Controller
 
     public function register(): View
     {
-        return view('auth.register');
+        return MarketingPage::auth('register');
     }
 
     public function store(Request $request): RedirectResponse
@@ -62,7 +63,7 @@ class AuthController extends Controller
 
     public function forgot(): View
     {
-        return view('auth.forgot');
+        return MarketingPage::auth('forgot');
     }
 
     public function sendReset(Request $request): RedirectResponse
@@ -81,9 +82,9 @@ class AuthController extends Controller
 
     public function showReset(Request $request, string $token): View
     {
-        return view('auth.reset', [
+        return MarketingPage::auth('reset', [
             'token' => $token,
-            'email' => $request->string('email'),
+            'email' => (string) $request->string('email'),
         ]);
     }
 

@@ -56,4 +56,16 @@ class ArabicInterfaceTest extends TestCase
             $this->get(route($route))->assertOk()->assertSee(__('messages.'.$key))->assertDontSee($english, false);
         }
     }
+
+    public function test_marketing_and_auth_pages_are_arabic(): void
+    {
+        app()->setLocale('ar');
+        foreach (['landing', 'login', 'register', 'password.request'] as $route) {
+            $this->get(route($route))->assertOk()
+                ->assertSee('<html lang="ar" dir="rtl">', false)
+                ->assertSee('"locale":"ar"', false)
+                ->assertSee(__('messages.noscript_notice'));
+        }
+        $this->get(route('login'))->assertSee('<title>'.__('messages.login'), false);
+    }
 }

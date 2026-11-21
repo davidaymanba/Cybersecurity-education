@@ -294,4 +294,5 @@ return [
     'are_you_sure' => 'Are you sure?',
     'errors_title' => 'Please fix the following',
     'ui_kit' => 'UI kit',
+    'noscript_notice' => 'This page needs JavaScript enabled in your browser.',
 ];

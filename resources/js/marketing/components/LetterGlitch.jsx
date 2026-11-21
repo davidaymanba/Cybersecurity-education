@@ -72,8 +72,9 @@ export default function LetterGlitch({
         };
 
         const loop = (time) => {
+            if (!visible) { raf = 0; return; }
             raf = requestAnimationFrame(loop);
-            if (visible && time - last > speed) {
+            if (time - last > speed) {
                 update();
                 last = time;
             }
@@ -82,9 +83,13 @@ export default function LetterGlitch({
         resize();
         const resizeObserver = new ResizeObserver(resize);
         resizeObserver.observe(canvas.parentElement);
-        const io = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
+        const animate = !prefersReducedMotion();
+        // Off-screen: stop the frame loop entirely; restart when it scrolls back into view.
+        const io = new IntersectionObserver(([entry]) => {
+            visible = entry.isIntersecting;
+            if (visible && animate && !raf) raf = requestAnimationFrame(loop);
+        });
         io.observe(canvas);
-        if (!prefersReducedMotion()) raf = requestAnimationFrame(loop);
 
         return () => {
             cancelAnimationFrame(raf);

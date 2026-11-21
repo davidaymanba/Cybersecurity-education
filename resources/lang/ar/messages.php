@@ -331,4 +331,5 @@ return [
     'are_you_sure' => 'متأكد؟',
     'errors_title' => 'فيه شي يحتاج تصحيح',
     'ui_kit' => 'مكوّنات الواجهة',
+    'noscript_notice' => 'هذي الصفحة تحتاج تفعيل JavaScript في المتصفح عشان تشتغل.',
 ];

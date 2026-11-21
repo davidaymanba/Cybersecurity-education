@@ -9,9 +9,9 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.js',
-                // Landing-page preview: React islands + GSAP + Lenis (only loaded on /preview).
-                'resources/css/preview.css',
-                'resources/js/preview/main.jsx',
+                // Marketing + auth pages: React islands + GSAP + Lenis (never loaded on app pages).
+                'resources/css/marketing.css',
+                'resources/js/marketing/main.jsx',
             ],
             refresh: true,
         }),

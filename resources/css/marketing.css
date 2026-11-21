@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+@source '../js/marketing/**/*.{js,jsx}';
+@source '../views/marketing.blade.php';
