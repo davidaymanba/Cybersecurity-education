@@ -6,6 +6,7 @@ use App\Models\Bookmark;
 use App\Models\Lesson;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class BookmarkController extends Controller
 {
@@ -36,17 +37,25 @@ class BookmarkController extends Controller
     }
 
     /**
-     * Return all bookmarked lessons for the authenticated user.
+     * Saved lessons: an HTML page for browsers, JSON for API callers (Accept: application/json).
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): JsonResponse|View
     {
         $bookmarks = Bookmark::where('user_id', $request->user()->id)
-            ->with('lesson:id,title,slug,difficulty,duration_minutes')
+            ->with('lesson.section')
             ->latest()
             ->get()
             ->map(fn ($b) => $b->lesson)
-            ->filter();
+            ->filter(fn ($lesson) => $lesson && ($lesson->is_published || $request->user()->isAdmin()))
+            ->values();
 
-        return response()->json($bookmarks->values());
+        if ($request->wantsJson()) {
+            return response()->json($bookmarks->map->only(['id', 'title', 'slug', 'difficulty', 'duration_minutes'])->values());
+        }
+
+        return view('student.bookmarks', [
+            'lessons' => $bookmarks,
+            'progress' => $request->user()->progress()->pluck('progress_percent', 'lesson_id'),
+        ]);
     }
 }

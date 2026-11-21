@@ -127,6 +127,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .scanline, .ring-spin, .ring-spin-rev, .pulse-dot, .typing-dot, .caret::after { animation: none !important; }
+    .scanline, .ring-spin, .ring-spin-rev, .pulse-dot, .typing-dot, .caret::after, .animate-ping, .animate-pulse, .animate-spin { animation: none !important; }
     *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

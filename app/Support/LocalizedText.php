@@ -17,8 +17,26 @@ class LocalizedText
         return is_array($map) && isset($map[$value]) ? $map[$value] : $value;
     }
 
+    /**
+     * Lesson HTML: an exact match first, otherwise translate each whole text node (">sentence<")
+     * that the map knows. Partial strings are never replaced, so unknown content stays intact.
+     */
     public static function html(?string $value): string
     {
-        return self::get($value);
+        $exact = self::get($value);
+        if ($exact !== (string) $value || app()->getLocale() !== 'ar') {
+            return $exact;
+        }
+
+        $map = trans('messages.content_map');
+        if (! is_array($map)) {
+            return $exact;
+        }
+
+        return preg_replace_callback('/>([^<>]+)</u', function (array $match) use ($map) {
+            $text = trim(html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5));
+
+            return isset($map[$text]) ? '>'.e($map[$text]).'<' : $match[0];
+        }, (string) $value);
     }
 }

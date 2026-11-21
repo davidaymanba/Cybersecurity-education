@@ -68,4 +68,26 @@ class ArabicInterfaceTest extends TestCase
         }
         $this->get(route('login'))->assertSee('<title>'.__('messages.login'), false);
     }
+
+    public function test_redesigned_student_pages_are_arabic(): void
+    {
+        $student = User::where('email', 'student@cyberlearn.test')->firstOrFail();
+        $quiz = Quiz::firstOrFail();
+        $result = $student->quizResults()->create(['quiz_id' => $quiz->id, 'score' => 100, 'correct_answers' => 2, 'total_questions' => 2, 'answers_snapshot' => [], 'completed_at' => now()]);
+        $this->actingAs($student);
+        app()->setLocale('ar');
+
+        $pages = [
+            route('dashboard') => ['course_progress', 'Course progress'],
+            route('bookmarks.index') => ['no_bookmarks', 'Saved lessons'],
+            route('account.edit') => ['change_password', 'Change password'],
+            route('results.show', $result) => ['quiz_passed', 'Answer review'],
+            route('voice') => ['voice_lead', 'Start listening'],
+            route('quizzes.show', $quiz) => ['answered', 'Answered'],
+        ];
+
+        foreach ($pages as $url => [$key, $english]) {
+            $this->get($url)->assertOk()->assertSee('dir="rtl"', false)->assertSee(__('messages.'.$key))->assertDontSee($english);
+        }
+    }
 }

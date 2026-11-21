@@ -136,6 +136,8 @@
 
     /* Lesson content (sanitised HTML from the database). */
     .prose-lesson { color: #cbd5e1; line-height: 1.95; font-size: 1.02rem; }
+    /* Untranslated content keeps its own direction: each block follows its first strong character. */
+    .prose-lesson :is(p, li, h2, h3, h4, blockquote) { unicode-bidi: plaintext; text-align: start; }
     .prose-lesson > * + * { margin-top: 1rem; }
     .prose-lesson h2 { margin-top: 2.25rem; font-size: 1.35rem; font-weight: 700; color: #fff; }
     .prose-lesson h3 { margin-top: 1.75rem; font-size: 1.12rem; font-weight: 600; color: #fff; }

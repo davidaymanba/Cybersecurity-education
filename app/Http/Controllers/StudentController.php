@@ -20,16 +20,37 @@ class StudentController extends Controller
     {
         $user = auth()->user();
         $lessons = Lesson::with('section')->where('is_published', true)->orderBy('sort_order')->get();
-        $progress = $user->progress()->pluck('progress_percent', 'lesson_id');
-        $recentResults = $user->quizResults()->with('quiz.lesson')->latest()->take(4)->get();
+        $progressRows = $user->progress()->whereIn('lesson_id', $lessons->modelKeys())->get()->keyBy('lesson_id');
+        $progress = $progressRows->map(fn ($row) => (int) $row->progress_percent);
+        $recentResults = $user->quizResults()->with('quiz.lesson')->latest()->take(5)->get();
 
-        return view('student.dashboard', compact('lessons', 'progress', 'recentResults'));
+        // Continue with the lesson touched most recently that is not finished, else the next unstarted one.
+        $inProgress = $progressRows->filter(fn ($row) => $row->progress_percent < 100)->sortByDesc('updated_at')->first();
+        $continue = ($inProgress ? $lessons->firstWhere('id', $inProgress->lesson_id) : null)
+            ?? $lessons->first(fn ($lesson) => ($progress[$lesson->id] ?? 0) < 100);
+
+        $bookmarks = $user->bookmarks()->with('lesson.section')->latest()->get()
+            ->pluck('lesson')->filter(fn ($lesson) => $lesson?->is_published)->take(4)->values();
+
+        $stats = [
+            'course_progress' => $lessons->isEmpty() ? 0 : (int) round($lessons->sum(fn ($lesson) => $progress[$lesson->id] ?? 0) / $lessons->count()),
+            'completed' => $progressRows->filter(fn ($row) => $row->progress_percent >= 100)->count(),
+            'total' => $lessons->count(),
+            'attempts' => $user->quizResults()->count(),
+            'best' => (int) $user->quizResults()->max('score'),
+        ];
+
+        return view('student.dashboard', compact('lessons', 'progress', 'recentResults', 'continue', 'bookmarks', 'stats'));
     }
 
     public function lessons(): View
     {
+        $user = auth()->user();
+
         return view('student.lessons', [
             'sections' => $this->sectionsWithPublishedLessons(),
+            'progress' => $user->progress()->pluck('progress_percent', 'lesson_id'),
+            'bookmarked' => $user->bookmarks()->pluck('lesson_id')->flip(),
         ]);
     }
 
@@ -44,7 +65,10 @@ class StudentController extends Controller
             'lesson_id' => $lesson->id,
         ], ['started_at' => now(), 'progress_percent' => 10]);
 
-        return view('student.lesson', compact('lesson', 'sections', 'progress', 'version'));
+        $bookmarked = auth()->user()->bookmarks()->where('lesson_id', $lesson->id)->exists();
+        $completed = auth()->user()->progress()->where('progress_percent', '>=', 100)->pluck('lesson_id')->flip();
+
+        return view('student.lesson', compact('lesson', 'sections', 'progress', 'version', 'bookmarked', 'completed'));
     }
 
     public function quiz(Request $request, Quiz $quiz): View

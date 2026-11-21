@@ -16,6 +16,8 @@
         'copied' => __('messages.copied'),
         'openMenu' => __('messages.open_menu'),
         'closeMenu' => __('messages.close_menu'),
+        'bookmarkRemoved' => __('messages.bookmark_removed'),
+        'genericError' => __('messages.generic_error'),
     ];
 @endphp
 <!doctype html>

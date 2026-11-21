@@ -52,7 +52,17 @@ function split(el) {
     const gradient = el.dataset.splitGradient !== undefined;
     el.setAttribute('aria-label', text);
     el.textContent = '';
-    text.split(' ').forEach((word, i, all) => {
+    // In RTL pages each word becomes an inline-block, and the bidi algorithm would lay out a
+    // run of Latin words (a name, "Cyber Mentor") in reverse. Keep such runs in one unit.
+    const units = [];
+    const arabicLetter = /[\u0621-\u064A]/;
+    text.split(' ').forEach((word) => {
+        const latin = !arabicLetter.test(word);
+        const last = units[units.length - 1];
+        if (isRtl() && latin && last?.latin) last.text += ` ${word}`;
+        else units.push({ text: word, latin });
+    });
+    units.forEach(({ text: word }, i, all) => {
         const mask = document.createElement('span');
         mask.setAttribute('aria-hidden', 'true');
         mask.className = 'inline-block overflow-hidden pb-[0.12em] align-bottom';

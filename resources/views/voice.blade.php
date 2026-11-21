@@ -1,131 +1,61 @@
-<!doctype html>
-<html lang="{{ app()->getLocale() }}" dir="{{ app()->getLocale() === 'ar' ? 'rtl' : 'ltr' }}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ __('messages.voice_assistant') }}</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; padding: 1.5rem; }
-        #controls { margin-bottom: 1rem; }
-        button { margin-right: .5rem; }
-        #transcript, #reply { background:#f7f7f8; padding: .75rem; border-radius:6px; min-height:40px }
-    </style>
-</head>
-<body>
-    <h1>مساعد صوتي تفاعلي</h1>
+@extends('layouts.app', ['title' => __('messages.voice_assistant')])
 
-    <div id="controls">
-        <button id="startBtn">ابدأ الاستماع</button>
-        <button id="stopBtn" disabled>إيقاف</button>
-        <input id="manualInput" placeholder="أكتب رسالتك هنا" style="width:40%">
-        <button id="sendBtn">إرسال</button>
-        @if($serverTts)
-            <button id="serverTtsBtn">اختبار TTS على الخادم</button>
-        @endif
+@php
+    $voiceStrings = [
+        'listening' => __('messages.voice_listening'),
+        'idle' => __('messages.voice_idle'),
+        'thinking' => __('messages.thinking'),
+        'unsupported' => __('messages.voice_unsupported'),
+        'error' => __('messages.voice_error'),
+        'ttsMaking' => __('messages.voice_tts_making'),
+        'ttsFailed' => __('messages.voice_tts_failed'),
+        'start' => __('messages.voice_start'),
+        'stop' => __('messages.voice_stop'),
+    ];
+@endphp
+
+@section('content')
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6" data-voice
+     data-respond-url="{{ route('voice.respond') }}" data-tts-url="{{ route('voice.tts') }}"
+     data-lang="{{ app()->getLocale() === 'ar' ? 'ar-SA' : 'en-US' }}">
+    <x-ui.page-header :kicker="'Cyber Mentor'" :title="__('messages.voice_assistant')" :lead="__('messages.voice_lead')" />
+
+    <section class="surface-strong hud relative mt-10 overflow-hidden px-6 py-10 text-center" data-reveal>
+        <div class="grid-bg pointer-events-none absolute inset-0 opacity-70" aria-hidden="true"></div>
+        <div class="relative">
+            <button type="button" data-voice-mic aria-pressed="false" aria-label="{{ __('messages.voice_start') }}"
+                    class="group relative mx-auto grid h-32 w-32 place-items-center rounded-full bg-signal/10 text-signal ring-1 ring-signal/40 transition hover:bg-signal/15 aria-pressed:bg-danger/15 aria-pressed:text-red-300 aria-pressed:ring-danger/50">
+                <span class="absolute inset-0 rounded-full ring-1 ring-signal/20 group-aria-pressed:animate-ping group-aria-pressed:ring-danger/40" aria-hidden="true"></span>
+                <span class="ring-spin absolute -inset-3 rounded-full border border-dashed border-signal/25" aria-hidden="true"></span>
+                <x-ui.icon name="mic" class="h-10 w-10 group-aria-pressed:hidden" />
+                <x-ui.icon name="stop" class="hidden h-9 w-9 group-aria-pressed:block" />
+            </button>
+            <p class="mt-6 text-sm text-slate-300" data-voice-status role="status">{{ __('messages.voice_idle') }}</p>
+
+            <form class="mx-auto mt-8 flex max-w-xl gap-2" data-voice-form>
+                <label for="voice-text" class="sr-only">{{ __('messages.voice_type') }}</label>
+                <input id="voice-text" type="text" class="field-control flex-1 rounded-xl bg-white/[0.04] !py-3 ring-1 ring-white/10 focus:ring-signal/60" placeholder="{{ __('messages.voice_type') }}" maxlength="2000">
+                <x-ui.button icon="send">{{ __('messages.send') }}</x-ui.button>
+            </form>
+        </div>
+    </section>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+        <section class="surface p-5" data-reveal>
+            <h2 class="mb-2 flex items-center gap-2 text-sm font-medium text-slate-400"><x-ui.icon name="user" class="h-4 w-4" />{{ __('messages.voice_transcript') }}</h2>
+            <p class="min-h-12 leading-7 text-white" data-voice-transcript dir="auto">—</p>
+        </section>
+        <section class="surface p-5" data-reveal data-delay="0.06">
+            <div class="mb-2 flex items-center justify-between gap-2">
+                <h2 class="flex items-center gap-2 text-sm font-medium text-slate-400"><x-ui.icon name="sparkles" class="h-4 w-4 text-signal" />{{ __('messages.voice_reply') }}</h2>
+                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400"><input type="checkbox" data-voice-speak checked class="accent-cyan-400">{{ __('messages.voice_speak') }}</label>
+            </div>
+            <p class="min-h-12 whitespace-pre-line leading-7 text-slate-200" data-voice-reply dir="auto" aria-live="polite">—</p>
+            @if($serverTts)
+                <button type="button" class="btn btn-ghost btn-sm mt-4" data-voice-server-tts><x-ui.icon name="speaker" class="h-4 w-4" />{{ __('messages.voice_server_tts') }}</button>
+            @endif
+        </section>
     </div>
-
-    <p><strong>النص الملتقط:</strong></p>
-    <div id="transcript"></div>
-
-    <p style="margin-top:1rem"><strong>رد الـ AI:</strong></p>
-    <div id="reply"></div>
-
-    <script>
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const transcriptEl = document.getElementById('transcript');
-        const replyEl = document.getElementById('reply');
-        let recognition = null;
-
-        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.lang = 'ar-SA';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
-            recognition.onresult = (e) => {
-                const text = e.results[0][0].transcript;
-                transcriptEl.textContent = text;
-                sendText(text);
-            };
-
-            recognition.onend = () => {
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-            };
-        }
-
-        startBtn.addEventListener('click', () => {
-            if (!recognition) { alert('متصفحك لا يدعم ميزة التعرف على الصوت.'); return; }
-            recognition.start();
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-        });
-
-        stopBtn.addEventListener('click', () => {
-            if (recognition) recognition.stop();
-        });
-
-        document.getElementById('sendBtn').addEventListener('click', () => {
-            const t = document.getElementById('manualInput').value.trim();
-            if (t) { transcriptEl.textContent = t; sendText(t); }
-        });
-
-        async function sendText(text) {
-            replyEl.textContent = 'جاري التفكير...';
-            try {
-                const res = await fetch('{{ route("voice.respond") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({ text })
-                });
-
-                if (!res.ok) {
-                    replyEl.textContent = 'خطأ: ' + res.statusText;
-                    return;
-                }
-
-                const data = await res.json();
-                replyEl.textContent = data.message || '';
-
-                if ('speechSynthesis' in window && data.message) {
-                    const ut = new SpeechSynthesisUtterance(data.message);
-                    ut.lang = 'ar-SA';
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(ut);
-                }
-            } catch (err) {
-                replyEl.textContent = 'خطأ في الاتصال';
-            }
-        }
-
-        // Server-side TTS test
-        document.getElementById('serverTtsBtn')?.addEventListener('click', async () => {
-            const text = document.getElementById('manualInput').value || transcriptEl.textContent || 'مرحبا';
-            replyEl.textContent = 'جاري توليد ملف صوتي...';
-            try {
-                const res = await fetch('{{ route("voice.tts") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({ text })
-                });
-                const j = await res.json();
-                if (!j.ok) { replyEl.textContent = 'خطأ: ' + (j.error || res.statusText); return; }
-                replyEl.textContent = 'تم الإنشاء: تشغيل الصوت...';
-                const audio = new Audio(j.url);
-                audio.play();
-            } catch (e) {
-                replyEl.textContent = 'فشل إنشاء الصوت';
-            }
-        });
-    </script>
-</body>
-</html>
+</div>
+<script>window.__voiceStrings = @json($voiceStrings);</script>
+@endsection
