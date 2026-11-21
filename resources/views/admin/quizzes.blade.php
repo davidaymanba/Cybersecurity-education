@@ -1,170 +1,99 @@
-@extends('layouts.app', ['title' => __('messages.manage_quizzes')])
+@extends('layouts.admin', ['title' => __('messages.manage_quizzes')])
 
-@section('content')
-<section class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <p class="text-sm font-medium text-cyan-200">{{ __('messages.admin_assessment') }}</p>
-            <h1 class="mt-1 text-3xl font-semibold tracking-tight">{{ __('messages.quizzes_crud') }}</h1>
-            <p class="mt-2 max-w-2xl text-sm text-slate-300">{{ __('messages.quizzes_crud_lead') }}</p>
-        </div>
-        <a href="{{ route('admin.lessons') }}" class="inline-flex items-center justify-center rounded-lg border border-cyan-300/30 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10">{{ __('messages.manage_lessons') }}</a>
-    </div>
+@php($lessonOptions = $lessons->pluck('title', 'id')->all())
 
-    @if($errors->any())
-        <div class="mt-6 rounded-lg border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-            {{ $errors->first() }}
-        </div>
-    @endif
+@section('admin')
+    <x-ui.page-header :kicker="__('messages.admin_assessment')" :title="__('messages.quizzes_crud')" :lead="__('messages.quizzes_crud_lead')">
+        <x-ui.button type="button" icon="plus" data-modal-open="quiz-create">{{ __('messages.create_quiz') }}</x-ui.button>
+    </x-ui.page-header>
 
-    <form method="post" action="{{ route('admin.quizzes.store') }}" class="mt-6 grid gap-4 rounded-lg border border-white/10 bg-white/[0.08] p-4 shadow-2xl shadow-slate-950/20 sm:p-5 lg:grid-cols-6">
-        @csrf
-        <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.lesson') }}</label>
-            <select name="lesson_id" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-                @foreach($lessons as $lesson)
-                    <option value="{{ $lesson->id }}" @selected(old('lesson_id') == $lesson->id)>{{ $lesson->title }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.quiz_title') }}</label>
-            <input name="title" value="{{ old('title', 'Knowledge Check') }}" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-        </div>
-        <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.time_limit_seconds') }}</label>
-            <input name="timer_seconds" type="number" min="60" step="30" value="{{ old('timer_seconds', 600) }}" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-        </div>
-        <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.passing_score') }}</label>
-            <input name="passing_score" type="number" min="1" max="100" value="{{ old('passing_score', 70) }}" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-        </div>
-        <div class="lg:col-span-2">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.question_order') }}</label>
-            <input name="sort_order" type="number" min="0" value="{{ old('sort_order', 0) }}" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white">
-        </div>
-        <div class="lg:col-span-6">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.first_question') }}</label>
-            <textarea name="question" placeholder="{{ __('messages.question_placeholder') }}" class="min-h-24 w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>{{ old('question') }}</textarea>
-        </div>
-        <div class="grid gap-3 lg:col-span-6 lg:grid-cols-2">
-            @for($i = 0; $i < 4; $i++)
-                <input name="answers[]" value="{{ old('answers.'.$i) }}" placeholder="{{ __('messages.answer_n', ['n' => $i + 1]) }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-            @endfor
-        </div>
-        <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.correct_answer') }}</label>
-            <select name="correct_index" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white">
-                @for($i = 0; $i < 4; $i++)
-                    <option value="{{ $i }}" @selected((int) old('correct_index', 0) === $i)>{{ __('messages.answer_n_correct', ['n' => $i + 1]) }}</option>
-                @endfor
-            </select>
-        </div>
-        <div class="lg:col-span-3">
-            <label class="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">{{ __('messages.explanation') }}</label>
-            <input name="explanation" value="{{ old('explanation') }}" placeholder="{{ __('messages.explanation_placeholder') }}" class="w-full rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white">
-        </div>
-        <div class="flex justify-end lg:col-span-6">
-            <button class="rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-300">{{ __('messages.create_quiz') }}</button>
-        </div>
-    </form>
-
-    <div class="mt-8 grid gap-5">
+    <div class="mt-6 space-y-4">
         @forelse($quizzes as $quiz)
-            <article class="rounded-lg border border-white/10 bg-white/[0.08] p-4 sm:p-5">
-                <div class="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-wide text-cyan-200">{{ $quiz->lesson?->title ?? 'No lesson' }}</p>
-                        <h2 class="mt-1 text-xl font-semibold">{{ $quiz->title }}</h2>
-                        <p class="mt-2 text-sm text-slate-300">{{ __('messages.quiz_meta', ['count' => $quiz->questions->count(), 'timer' => gmdate('i:s', $quiz->timer_seconds), 'pass' => $quiz->passing_score]) }}</p>
-                    </div>
-                    <form method="post" action="{{ route('admin.quizzes.delete', $quiz) }}" onsubmit="return confirm(@js(__('messages.confirm_delete_quiz')))">
-                        @csrf
-                        @method('delete')
-                        <button class="w-full rounded-lg border border-rose-300/30 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/10 lg:w-auto">{{ __('messages.delete_quiz') }}</button>
-                    </form>
-                </div>
-
-                <form method="post" action="{{ route('admin.quizzes.update', $quiz) }}" class="mt-5 grid gap-3 lg:grid-cols-6">
-                    @csrf
-                    @method('put')
-                    <select name="lesson_id" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-2" required>
-                        @foreach($lessons as $lesson)
-                            <option value="{{ $lesson->id }}" @selected($quiz->lesson_id === $lesson->id)>{{ $lesson->title }}</option>
-                        @endforeach
-                    </select>
-                    <input name="title" value="{{ $quiz->title }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-2" required>
-                    <input name="timer_seconds" type="number" min="60" step="30" value="{{ $quiz->timer_seconds }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-                    <input name="passing_score" type="number" min="1" max="100" value="{{ $quiz->passing_score }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-                    <div class="flex justify-end lg:col-span-6">
-                        <button class="rounded-lg bg-cyan-400 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-300">{{ __('messages.save_quiz') }}</button>
-                    </div>
-                </form>
-
-                <div class="mt-6 grid gap-4 xl:grid-cols-2">
-                    @foreach($quiz->questions as $question)
-                        @php
-                            $answers = $question->answers->values();
-                            $correctIndex = $answers->search(fn ($answer) => $answer->is_correct);
-                            $correctIndex = $correctIndex === false ? 0 : $correctIndex;
-                        @endphp
-                        <div class="rounded-lg border border-white/10 bg-slate-950/45 p-4">
-                            <form method="post" action="{{ route('admin.questions.update', $question) }}" class="grid gap-3">
-                                @csrf
-                                @method('put')
-                                <div class="grid gap-3 sm:grid-cols-[1fr_120px]">
-                                    <textarea name="question" class="min-h-24 rounded-lg border border-white/10 bg-slate-950/80 p-3 text-white" required>{{ $question->question }}</textarea>
-                                    <input name="sort_order" type="number" min="0" value="{{ $question->sort_order }}" class="h-12 rounded-lg border border-white/10 bg-slate-950/80 p-3 text-white" title="Sort order">
-                                </div>
-                                <div class="grid gap-2">
-                                    @for($i = 0; $i < 4; $i++)
-                                        <input name="answers[]" value="{{ $answers[$i]->answer ?? '' }}" placeholder="{{ __('messages.answer_n', ['n' => $i + 1]) }}" class="rounded-lg border border-white/10 bg-slate-950/80 p-3 text-white" required>
-                                    @endfor
-                                </div>
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <select name="correct_index" class="rounded-lg border border-white/10 bg-slate-950/80 p-3 text-white">
-                                        @for($i = 0; $i < 4; $i++)
-                                            <option value="{{ $i }}" @selected((int) $correctIndex === $i)>Answer {{ $i + 1 }} correct</option>
-                                        @endfor
-                                    </select>
-                                    <input name="explanation" value="{{ $question->explanation }}" placeholder="{{ __('messages.explanation') }}" class="rounded-lg border border-white/10 bg-slate-950/80 p-3 text-white">
-                                </div>
-                                <div class="flex justify-end">
-                                    <button class="rounded-lg bg-emerald-400 px-4 py-2 font-semibold text-slate-950 transition hover:bg-emerald-300">{{ __('messages.save_question') }}</button>
-                                </div>
-                            </form>
-                            <form method="post" action="{{ route('admin.questions.delete', $question) }}" class="mt-3 flex justify-end" onsubmit="return confirm(@js(__('messages.confirm_delete_question')))">
-                                @csrf
-                                @method('delete')
-                                <button class="rounded-lg border border-rose-300/30 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/10">{{ __('messages.delete_question') }}</button>
-                            </form>
+            <article class="surface p-5" aria-labelledby="quiz-{{ $quiz->id }}-title">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                        <p class="truncate text-xs text-signal">{{ $quiz->lesson?->title ?? __('messages.deleted_lesson') }}</p>
+                        <h2 id="quiz-{{ $quiz->id }}-title" class="mt-0.5 text-lg font-semibold text-white">{{ $quiz->title }}</h2>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            <x-ui.badge><x-ui.icon name="quiz" class="h-3 w-3" />{{ __('messages.questions_count', ['count' => $quiz->questions->count()]) }}</x-ui.badge>
+                            <x-ui.badge><x-ui.icon name="clock" class="h-3 w-3" /><span dir="ltr">{{ gmdate('i:s', $quiz->timer_seconds) }}</span></x-ui.badge>
+                            <x-ui.badge tone="safe">{{ __('messages.passing_score') }} {{ $quiz->passing_score }}%</x-ui.badge>
                         </div>
-                    @endforeach
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <x-ui.button type="button" size="sm" variant="ghost" icon="edit" data-modal-open="quiz-{{ $quiz->id }}">{{ __('messages.quiz_settings') }}</x-ui.button>
+                        <x-ui.button type="button" size="sm" variant="ghost" icon="plus" data-modal-open="question-new-{{ $quiz->id }}">{{ __('messages.add_question') }}</x-ui.button>
+                        <x-ui.confirm :action="route('admin.quizzes.delete', $quiz)" method="DELETE" :message="__('messages.confirm_delete_quiz')" icon="trash" :confirm-label="__('messages.delete_quiz')" aria-label="{{ __('messages.delete_quiz') }}"><span class="sr-only">{{ __('messages.delete_quiz') }}</span></x-ui.confirm>
+                    </div>
                 </div>
 
-                <form method="post" action="{{ route('admin.questions.store', $quiz) }}" class="mt-5 grid gap-3 rounded-lg border border-dashed border-cyan-300/30 p-4 lg:grid-cols-6">
-                    @csrf
-                    <textarea name="question" placeholder="{{ __('messages.new_question_placeholder') }}" class="min-h-24 rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-5" required></textarea>
-                    <input name="sort_order" type="number" min="0" value="{{ $quiz->questions->count() }}" class="h-12 rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" title="Sort order">
-                    <div class="grid gap-3 lg:col-span-6 lg:grid-cols-2">
-                        @for($i = 0; $i < 4; $i++)
-                            <input name="answers[]" placeholder="{{ __('messages.answer_n', ['n' => $i + 1]) }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white" required>
-                        @endfor
-                    </div>
-                    <select name="correct_index" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-2">
-                        @for($i = 0; $i < 4; $i++)
-                            <option value="{{ $i }}">{{ __('messages.answer_n_correct', ['n' => $i + 1]) }}</option>
-                        @endfor
-                    </select>
-                    <input name="explanation" placeholder="{{ __('messages.optional_explanation') }}" class="rounded-lg border border-white/10 bg-slate-950/70 p-3 text-white lg:col-span-3">
-                    <button class="rounded-lg bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300">{{ __('messages.add_question') }}</button>
-                </form>
+                @if($quiz->questions->isNotEmpty())
+                    <ol class="mt-4 divide-y divide-white/[0.06] rounded-xl ring-1 ring-white/[0.06]">
+                        @foreach($quiz->questions as $question)
+                            @php($formId = 'question-'.$question->id)
+                            <li>
+                                <details class="group" @if(old('_form') === $formId) open @endif>
+                                    <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
+                                        <span class="font-mono text-xs text-slate-500">{{ $loop->iteration }}</span>
+                                        <span class="min-w-0 flex-1 truncate text-sm text-slate-200">{{ $question->question }}</span>
+                                        <span class="hidden max-w-[40%] truncate text-xs text-safe sm:inline">✓ {{ $question->answers->firstWhere('is_correct', true)?->answer }}</span>
+                                        <x-ui.icon name="chevron-down" class="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
+                                    </summary>
+                                    <div class="border-t border-white/[0.06] p-4">
+                                        <x-ui.form :action="route('admin.questions.update', $question)" method="PUT" :form-id="$formId" :busy="__('messages.saving')" class="space-y-4">
+                                            @include('admin.partials.question-fields', ['question' => $question, 'formId' => $formId])
+                                            <div class="flex justify-end"><x-ui.button size="sm" icon="check">{{ __('messages.save_question') }}</x-ui.button></div>
+                                        </x-ui.form>
+                                        <div class="mt-3 flex justify-end border-t border-white/[0.06] pt-3">
+                                            <x-ui.confirm :action="route('admin.questions.delete', $question)" method="DELETE" :message="__('messages.confirm_delete_question')" icon="trash" :confirm-label="__('messages.delete_question')">{{ __('messages.delete_question') }}</x-ui.confirm>
+                                        </div>
+                                    </div>
+                                </details>
+                            </li>
+                        @endforeach
+                    </ol>
+                @endif
             </article>
         @empty
-            <div class="rounded-lg border border-white/10 bg-white/[0.08] p-6 text-sm text-slate-300">{{ __('messages.no_quizzes') }}</div>
+            <x-ui.empty icon="quiz" :title="__('messages.no_quizzes')" />
         @endforelse
     </div>
+    <div class="mt-4">{{ $quizzes->links() }}</div>
 
-    <div class="mt-6">{{ $quizzes->links() }}</div>
-</section>
+    {{-- Create quiz (with its first question) --}}
+    <x-ui.modal id="quiz-create" :title="__('messages.create_quiz')" size="max-w-2xl" :open-on-load="old('_form') === 'quiz-create'">
+        <x-ui.form :action="route('admin.quizzes.store')" form-id="quiz-create" :busy="__('messages.saving')" class="space-y-4">
+            <x-ui.select name="lesson_id" :label="__('messages.lesson')" :options="$lessonOptions" :placeholder="__('messages.choose_lesson')" required />
+            <x-ui.input name="title" dir="auto" :label="__('messages.quiz_title')" value="Knowledge Check" required maxlength="160" />
+            <div class="grid grid-cols-2 gap-4">
+                <x-ui.input name="timer_seconds" type="number" min="60" step="30" :label="__('messages.time_limit_seconds')" value="600" required />
+                <x-ui.input name="passing_score" type="number" min="1" max="100" :label="__('messages.passing_score')" value="70" required />
+            </div>
+            <p class="pt-2 text-sm font-medium text-white">{{ __('messages.first_question') }}</p>
+            @include('admin.partials.question-fields', ['question' => null, 'formId' => 'quiz-create'])
+            <p class="text-xs text-slate-500">{{ __('messages.create_quiz_hint') }}</p>
+            <div class="flex justify-end gap-2"><x-ui.button type="button" variant="ghost" data-modal-close>{{ __('messages.cancel') }}</x-ui.button><x-ui.button icon="plus">{{ __('messages.create_quiz') }}</x-ui.button></div>
+        </x-ui.form>
+    </x-ui.modal>
+
+    @foreach($quizzes as $quiz)
+        <x-ui.modal id="quiz-{{ $quiz->id }}" :title="__('messages.quiz_settings')" :open-on-load="old('_form') === 'quiz-'.$quiz->id">
+            <x-ui.form :action="route('admin.quizzes.update', $quiz)" method="PUT" :form-id="'quiz-'.$quiz->id" :busy="__('messages.saving')" class="space-y-4">
+                <x-ui.select name="lesson_id" :label="__('messages.lesson')" :options="$lessonOptions" :value="$quiz->lesson_id" required />
+                <x-ui.input name="title" dir="auto" :label="__('messages.quiz_title')" :value="$quiz->title" required maxlength="160" />
+                <div class="grid grid-cols-2 gap-4">
+                    <x-ui.input name="timer_seconds" type="number" min="60" step="30" :label="__('messages.time_limit_seconds')" :value="$quiz->timer_seconds" required />
+                    <x-ui.input name="passing_score" type="number" min="1" max="100" :label="__('messages.passing_score')" :value="$quiz->passing_score" required />
+                </div>
+                <div class="flex justify-end gap-2"><x-ui.button type="button" variant="ghost" data-modal-close>{{ __('messages.cancel') }}</x-ui.button><x-ui.button icon="check">{{ __('messages.save_quiz') }}</x-ui.button></div>
+            </x-ui.form>
+        </x-ui.modal>
+
+        <x-ui.modal id="question-new-{{ $quiz->id }}" :title="__('messages.add_question')" size="max-w-2xl" :open-on-load="old('_form') === 'question-new-'.$quiz->id">
+            <x-ui.form :action="route('admin.questions.store', $quiz)" :form-id="'question-new-'.$quiz->id" :busy="__('messages.saving')" class="space-y-4">
+                @include('admin.partials.question-fields', ['question' => null, 'formId' => 'question-new-'.$quiz->id, 'nextOrder' => $quiz->questions->count()])
+                <div class="flex justify-end gap-2"><x-ui.button type="button" variant="ghost" data-modal-close>{{ __('messages.cancel') }}</x-ui.button><x-ui.button icon="plus">{{ __('messages.add_question') }}</x-ui.button></div>
+            </x-ui.form>
+        </x-ui.modal>
+    @endforeach
 @endsection

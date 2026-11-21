@@ -109,9 +109,9 @@
         @endauth
     </header>
 
-    @if(session('status') || (($errorSummary ?? false) && $errors->any()))
+    @if((session('status') && ! session('temporary_password')) || (($errorSummary ?? false) && $errors->any()))
         <div class="mx-auto mt-4 max-w-7xl space-y-3 px-4 sm:px-6">
-            @if(session('status'))<x-ui.alert tone="safe" dismissible>{{ session('status') }}</x-ui.alert>@endif
+            @if(session('status') && ! session('temporary_password'))<x-ui.alert tone="safe" dismissible>{{ session('status') }}</x-ui.alert>@endif
             @if(($errorSummary ?? false) && $errors->any())
                 <x-ui.alert tone="danger" :title="__('messages.errors_title')" dismissible>
                     <ul class="mt-1 list-disc space-y-0.5 ps-4">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>

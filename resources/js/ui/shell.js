@@ -163,6 +163,15 @@ function modals() {
     });
 }
 
+function reopenInvalidDialogs() {
+    // After a failed submit, the dialog that holds the submitted form opens again with its errors.
+    const dialog = document.querySelector('dialog[data-open-on-load]');
+    if (dialog?.showModal) {
+        dialog.showModal();
+        dialog.querySelector('[aria-invalid="true"]')?.focus();
+    }
+}
+
 function headerShadow() {
     const header = document.querySelector('[data-app-header]');
     if (!header) return;
@@ -179,5 +188,6 @@ export function initShell() {
     busyForms();
     modals();
     headerShadow();
+    reopenInvalidDialogs();
     window.ui = { ...(window.ui || {}), toast };
 }

@@ -15,3 +15,4 @@ const celebration = document.querySelector('[data-celebrate]');
 if (celebration) import('./modules/celebrate').then((m) => setTimeout(() => m.celebrate(celebration), 700));
 
 if (document.querySelector('[data-voice]')) import('./modules/voice').then((m) => m.initVoice());
+if (document.querySelector('[data-chart]')) import('./modules/charts').then((m) => m.initCharts());

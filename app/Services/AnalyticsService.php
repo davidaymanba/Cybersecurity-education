@@ -7,6 +7,7 @@ use App\Models\Lesson;
 use App\Models\ProgressTracking;
 use App\Models\QuizResult;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class AnalyticsService
 
     public function overview(): array
     {
-        return Cache::remember('analytics_overview', self::CACHE_TTL_SECONDS, function () {
+        return Cache::remember('analytics_overview_v2', self::CACHE_TTL_SECONDS, function () {
             $totalInteractions = AiInteraction::count();
             $cacheHits = AiInteraction::where('cache_hit', true)->count();
             $totalTokens = (int) AiInteraction::sum('tokens_used');
@@ -71,11 +72,37 @@ class AnalyticsService
                     ->take(8)
                     ->get()
                     ->map(fn ($result) => [
-                        'lesson_title' => $result->quiz?->lesson?->title ?? 'Deleted lesson',
+                        // null when the lesson was deleted; the view prints a translated label.
+                        'lesson_title' => $result->quiz?->lesson?->title,
                         'score' => (int) $result->score,
+                        'passing_score' => (int) ($result->quiz?->passing_score ?? 0),
+                        'created_at' => $result->created_at?->toIso8601String(),
                     ])
                     ->all(),
+
+                'quiz_attempts' => QuizResult::count(),
+
+                'activity' => $this->dailyActivity(14),
             ];
         });
+    }
+
+    /**
+     * AI chats and quiz attempts per day for the last $days days (oldest first, zero-filled).
+     */
+    private function dailyActivity(int $days): array
+    {
+        $since = now()->subDays($days - 1)->startOfDay();
+        $perDay = fn ($query) => $query->where('created_at', '>=', $since)->pluck('created_at')
+            ->countBy(fn ($date) => Carbon::parse($date)->format('Y-m-d'));
+
+        $chats = $perDay(AiInteraction::query());
+        $quizzes = $perDay(QuizResult::query());
+
+        return collect(range($days - 1, 0))->map(function (int $ago) use ($chats, $quizzes) {
+            $day = now()->subDays($ago)->format('Y-m-d');
+
+            return ['date' => $day, 'chats' => (int) ($chats[$day] ?? 0), 'quizzes' => (int) ($quizzes[$day] ?? 0)];
+        })->all();
     }
 }

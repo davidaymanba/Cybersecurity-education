@@ -44,7 +44,7 @@
         </div>
     </header>
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[250px_minmax(0,1fr)_400px]">
+    <div class="mt-6 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[250px_minmax(0,1fr)_400px]">
         {{-- Course outline --}}
         <aside class="hidden xl:block">
             <nav aria-label="{{ __('messages.course_sections') }}" class="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pe-1" data-lenis-prevent>

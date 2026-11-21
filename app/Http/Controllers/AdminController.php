@@ -25,7 +25,9 @@ class AdminController extends Controller
 
     public function users(): View
     {
-        return view('admin.users', ['users' => User::with('role')->latest()->paginate(12)]);
+        $users = User::with('role')->withCount(['quizResults', 'progress'])->latest()->paginate(12);
+
+        return view('admin.users', ['users' => $users]);
     }
 
     /**
@@ -39,7 +41,9 @@ class AdminController extends Controller
         $temporary = Str::password(12, letters: true, numbers: true, symbols: false);
         $user->forceFill(['password' => $temporary, 'remember_token' => Str::random(60)])->save();
 
-        return back()->with('status', __('messages.temporary_password_set', ['email' => $user->email, 'password' => $temporary]));
+        return back()
+            ->with('status', __('messages.temporary_password_set', ['email' => $user->email, 'password' => $temporary]))
+            ->with('temporary_password', ['email' => $user->email, 'password' => $temporary]);
     }
 
     public function lessons(): View

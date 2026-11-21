@@ -1,10 +1,12 @@
-@props(['name', 'label', 'options' => [], 'value' => null, 'placeholder' => null, 'hint' => null, 'id' => null])
+@props(['name', 'label', 'options' => [], 'value' => null, 'placeholder' => null, 'hint' => null, 'id' => null, 'field' => null])
+@aware(['formId' => null])
 {{-- options: [value => label]. Slot content is appended after the generated options. --}}
 @php
-    $key = trim(str_replace(['[]', '[', ']'], ['', '.', ''], $name), '.');
+    $key = $field ?? trim(str_replace(['[]', '[', ']'], ['', '.', ''], $name), '.');
+    $inScope = old('_form') === null || old('_form') === $formId;
     $id ??= 'f-'.\Illuminate\Support\Str::slug(str_replace('.', '-', $key)).'-'.substr(md5(uniqid('', true)), 0, 5);
-    $message = $errors->first($key) ?: null;
-    $current = (string) old($key, $value);
+    $message = $inScope ? ($errors->first($key) ?: null) : null;
+    $current = (string) ($inScope ? old($key, $value) : $value);
 @endphp
 <div {{ $attributes->only('class')->class(['min-w-0']) }}>
     <div class="field" data-invalid="{{ $message ? 'true' : 'false' }}">

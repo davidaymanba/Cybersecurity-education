@@ -1,13 +1,15 @@
-@props(['name', 'label', 'type' => 'text', 'value' => null, 'hint' => null, 'id' => null, 'error' => null])
+@props(['name', 'label', 'type' => 'text', 'value' => null, 'hint' => null, 'id' => null, 'error' => null, 'field' => null])
+@aware(['formId' => null])
 {{--
     Floating-label input. Repopulates from old() (never for passwords) and shows the validation
     error for its field. Array names like answers[2] map to the "answers.2" error/old key.
 --}}
 @php
-    $key = trim(str_replace(['[]', '[', ']'], ['', '.', ''], $name), '.');
+    $key = $field ?? trim(str_replace(['[]', '[', ']'], ['', '.', ''], $name), '.');
+    $inScope = old('_form') === null || old('_form') === $formId;
     $id ??= 'f-'.\Illuminate\Support\Str::slug(str_replace('.', '-', $key)).'-'.substr(md5(uniqid('', true)), 0, 5);
-    $message = $error ?? ($errors->first($key) ?: null);
-    $current = $type === 'password' ? null : old($key, $value);
+    $message = $error ?? ($inScope ? ($errors->first($key) ?: null) : null);
+    $current = $type === 'password' ? null : ($inScope ? old($key, $value) : $value);
     $describedBy = trim(($message ? $id.'-error ' : '').($hint ? $id.'-hint' : ''));
 @endphp
 <div {{ $attributes->only('class')->class(['min-w-0']) }}>
