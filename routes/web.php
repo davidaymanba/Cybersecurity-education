@@ -149,6 +149,13 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::get('/app-api/analytics', AnalyticsController::class)->name('api.analytics');
     });
 
+    // Component gallery for design work. Only exists on a local machine, never in testing/production.
+    if (app()->environment('local')) {
+        Route::get('/_ui', fn () => view('dev.ui', [
+            'paginator' => new \Illuminate\Pagination\LengthAwarePaginator(range(1, 12), 48, 12, (int) request('page', 2), ['path' => url('/_ui')]),
+        ]))->name('dev.ui');
+    }
+
     // Language switcher (stores locale in session)
     Route::get('lang/{lang}', function ($lang) {
         if (in_array($lang, SetLocale::SUPPORTED, true)) {

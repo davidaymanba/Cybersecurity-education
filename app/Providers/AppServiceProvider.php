@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
         if ($proxies !== []) {
             TrustProxies::at($proxies);
         }
+
+        Paginator::defaultView('pagination.cyber');
 
         // The locale is resolved per request from the session in App\Http\Middleware\SetLocale.
     }

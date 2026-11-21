@@ -1,58 +1,171 @@
 @import 'tailwindcss';
+@import './tokens.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
-@source '../**/*.js';
+@source '../js/app.js';
+@source '../js/ui/**/*.js';
+@source '../js/modules/**/*.js';
 
-@theme {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-}
+/* ------------------------------------------------------------------------------------------
+ * App shell: server-rendered pages (student, admin, errors). No React here.
+ * ---------------------------------------------------------------------------------------- */
 
-@layer base {
-    :root {
-        --bg: #071426;
-        --panel: #0b1220;
-        --muted: #94a3b8;
-        --accent: #06b6d4;
-        --accent-600: #0891b2;
-        --text: #e6eef6;
-        --card: #0f1724;
+@layer components {
+    /* Surfaces */
+    .surface {
+        border-radius: 1rem;
+        background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.015));
+        box-shadow: inset 0 0 0 1px var(--color-line);
     }
+    .surface-strong { border-radius: 1rem; background: var(--color-panel); box-shadow: inset 0 0 0 1px var(--color-line); }
+    .surface-inset { border-radius: 0.75rem; background: rgb(3 10 20 / 0.6); box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.1); }
+    a.surface, a.surface-inset, .surface-link { transition: box-shadow .2s ease, background-color .2s ease; }
+    a.surface:hover, a.surface-inset:hover, .surface-link:hover { box-shadow: inset 0 0 0 1px rgb(34 211 238 / 0.45); }
 
-    html {
-        color-scheme: dark;
-        font-family: var(--font-sans);
-        background: linear-gradient(180deg,#041225 0%, #071426 100%);
+    /* Pointer spotlight for app cards: a child element, so it never fights .hud's pseudo-elements. */
+    .spot-card { position: relative; isolation: isolate; }
+    .spot-glow { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .35s ease;
+        background: radial-gradient(380px circle at var(--x, 50%) var(--y, 50%), var(--spot, rgb(34 211 238 / 0.14)), transparent 45%); }
+    .spot-card:hover > .spot-glow { opacity: 1; }
+
+    /* Buttons */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border-radius: 0.75rem;
+        padding: 0.65rem 1.1rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.25rem;
+        white-space: nowrap;
+        transition: background-color .2s ease, color .2s ease, box-shadow .2s ease, opacity .2s ease;
+        cursor: pointer;
     }
+    .btn:disabled, .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+    .btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8125rem; border-radius: 0.6rem; }
+    .btn-lg { padding: 0.9rem 1.5rem; font-size: 1rem; border-radius: 0.9rem; }
+    .btn-icon { padding: 0.5rem; }
+    .btn-primary { background: var(--color-signal); color: var(--color-void); box-shadow: 0 0 32px -12px rgb(34 211 238 / 0.8); }
+    .btn-primary:hover { background: #67e8f9; }
+    .btn-safe { background: var(--color-safe); color: var(--color-void); box-shadow: 0 0 32px -12px rgb(52 211 153 / 0.8); }
+    .btn-safe:hover { background: #6ee7b7; }
+    .btn-light { background: #fff; color: var(--color-void); }
+    .btn-light:hover { background: var(--color-signal); }
+    .btn-ghost { color: var(--color-ink); box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.22); }
+    .btn-ghost:hover { background: rgb(255 255 255 / 0.06); color: #fff; }
+    .btn-quiet { color: var(--color-muted); }
+    .btn-quiet:hover { background: rgb(255 255 255 / 0.06); color: #fff; }
+    .btn-danger { color: #fecaca; background: rgb(248 113 113 / 0.1); box-shadow: inset 0 0 0 1px rgb(248 113 113 / 0.35); }
+    .btn-danger:hover { background: rgb(248 113 113 / 0.2); color: #fff; }
+    .btn[data-busy="true"] { cursor: wait; }
 
-    body {
-        background-color: var(--bg);
+    /* Floating-label fields */
+    .field { position: relative; border-radius: 0.8rem; background: rgb(255 255 255 / 0.04); box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.18); transition: box-shadow .2s ease, background-color .2s ease; }
+    .field:focus-within { background: rgb(255 255 255 / 0.065); box-shadow: inset 0 0 0 1px rgb(34 211 238 / 0.65), 0 0 0 4px rgb(34 211 238 / 0.08); }
+    .field[data-invalid="true"] { box-shadow: inset 0 0 0 1px rgb(248 113 113 / 0.7); }
+    .field-control {
+        display: block;
+        width: 100%;
+        background: transparent;
+        border: 0;
+        outline: none;
+        color: #fff;
+        font-size: 0.95rem;
+        padding: 1.45rem 1rem 0.55rem;
     }
-
-    [dir="rtl"] {
-        direction: rtl;
-        font-family: 'Almarai', var(--font-sans);
-    }
-
-    input, textarea, select {
-        color-scheme: dark;
-    }
-
-    .container { max-width: 1100px; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem; }
-}
-
-@layer utilities {
-    .line-clamp-3 {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
+    .field-control:focus-visible { outline: none; }
+    textarea.field-control { resize: vertical; min-height: 7rem; line-height: 1.6; }
+    select.field-control { appearance: none; padding-inline-end: 2.5rem; cursor: pointer; }
+    select.field-control option { background: var(--color-panel); color: #fff; }
+    .field-label {
+        position: absolute;
+        inset-inline-start: 1rem;
+        top: 1rem;
+        max-width: calc(100% - 2rem);
         overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.875rem;
+        color: #7c8ba1;
+        pointer-events: none;
+        transition: top .18s ease, font-size .18s ease, color .18s ease;
     }
+    .field-control:focus ~ .field-label,
+    .field-control:not(:placeholder-shown) ~ .field-label,
+    .field-label[data-fixed] { top: 0.4rem; font-size: 0.6875rem; color: var(--color-muted); }
+    .field-control:focus ~ .field-label { color: var(--color-signal); }
+    .field-error { margin-top: 0.375rem; font-size: 0.75rem; color: #fca5a5; }
+    .field-hint { margin-top: 0.375rem; font-size: 0.75rem; color: #7c8ba1; }
+    .field-adornment { position: absolute; inset-inline-end: 0.6rem; top: 50%; translate: 0 -50%; }
+    .field-chevron { position: absolute; inset-inline-end: 0.9rem; top: 50%; translate: 0 -50%; color: var(--color-muted); pointer-events: none; }
 
-    .rtl { direction: rtl; }
-    .hero-3d { overflow: hidden; border-radius: 1rem; background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent); }
-    model-viewer { width: 100%; height: 100%; display: block; cursor: grab; border-radius: 0.75rem; }
-    model-viewer:active { cursor: grabbing; }
-    .hero-3d .text-xs { opacity: 0.9; }
+    /* Choice tiles (radio/checkbox styled as cards) */
+    .choice { display: flex; align-items: flex-start; gap: 0.75rem; border-radius: 0.8rem; padding: 0.85rem 1rem; background: rgb(255 255 255 / 0.03); box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.16); cursor: pointer; transition: box-shadow .2s ease, background-color .2s ease; }
+    .choice:hover { box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.35); }
+    .choice:has(input:checked) { background: rgb(34 211 238 / 0.08); box-shadow: inset 0 0 0 1px rgb(34 211 238 / 0.65); }
+    .choice:has(input:focus-visible) { outline: 2px solid var(--color-signal); outline-offset: 2px; }
+    .choice input { accent-color: var(--color-signal); margin-top: 0.3rem; flex: none; }
+
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .data-table th { text-align: start; font-weight: 500; color: var(--color-muted); font-size: 0.75rem; padding: 0.7rem 1rem; background: rgb(3 10 20 / 0.55); white-space: nowrap; }
+    .data-table td { padding: 0.75rem 1rem; border-top: 1px solid var(--color-line); vertical-align: middle; }
+    .data-table tbody tr { transition: background-color .15s ease; }
+    .data-table tbody tr:hover { background: rgb(255 255 255 / 0.025); }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.72rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; }
+
+    /* Dialogs */
+    dialog.modal { margin: auto; padding: 0; border: 0; background: transparent; color: inherit; max-width: min(32rem, calc(100vw - 2rem)); width: 100%; }
+    dialog.modal::backdrop { background: rgb(3 10 20 / 0.75); backdrop-filter: blur(4px); }
+    dialog.modal[open] { animation: modal-in .25s cubic-bezier(.16, 1, .3, 1); }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+
+    /* Toasts (client-side) */
+    .toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 0.6rem; border-radius: 0.8rem; padding: 0.75rem 1rem; background: var(--color-raised); box-shadow: inset 0 0 0 1px var(--color-line), 0 20px 40px -20px rgb(0 0 0 / 0.8); font-size: 0.875rem; animation: modal-in .3s cubic-bezier(.16, 1, .3, 1); }
+
+    /* Header nav link */
+    .nav-link { display: inline-flex; align-items: center; gap: 0.5rem; border-radius: 0.6rem; padding: 0.45rem 0.75rem; font-size: 0.875rem; color: var(--color-muted); transition: color .2s ease, background-color .2s ease; }
+    .nav-link:hover { color: #fff; background: rgb(255 255 255 / 0.05); }
+    .nav-link[aria-current="page"] { color: #fff; background: rgb(34 211 238 / 0.1); box-shadow: inset 0 0 0 1px rgb(34 211 238 / 0.3); }
+
+    /* Lesson content (sanitised HTML from the database). */
+    .prose-lesson { color: #cbd5e1; line-height: 1.95; font-size: 1.02rem; }
+    .prose-lesson > * + * { margin-top: 1rem; }
+    .prose-lesson h2 { margin-top: 2.25rem; font-size: 1.35rem; font-weight: 700; color: #fff; }
+    .prose-lesson h3 { margin-top: 1.75rem; font-size: 1.12rem; font-weight: 600; color: #fff; }
+    .prose-lesson a { color: var(--color-signal); text-decoration: underline; text-underline-offset: 3px; }
+    .prose-lesson ul, .prose-lesson ol { padding-inline-start: 1.4rem; }
+    .prose-lesson ul { list-style: disc; }
+    .prose-lesson ol { list-style: decimal; }
+    .prose-lesson li + li { margin-top: 0.4rem; }
+    .prose-lesson li::marker { color: var(--color-signal); }
+    .prose-lesson strong { color: #fff; }
+    .prose-lesson code { font-family: var(--font-mono); font-size: 0.85em; background: rgb(34 211 238 / 0.08); color: #a5f3fc; border-radius: 0.35rem; padding: 0.1rem 0.35rem; }
+    .prose-lesson pre { overflow-x: auto; border-radius: 0.75rem; background: var(--color-void); padding: 1rem; box-shadow: inset 0 0 0 1px var(--color-line); direction: ltr; text-align: left; }
+    .prose-lesson pre code { background: none; padding: 0; color: #e0f2fe; }
+    .prose-lesson blockquote { border-inline-start: 3px solid var(--color-signal); padding-inline-start: 1rem; color: var(--color-muted); }
+
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .skip-link { position: absolute; inset-inline-start: 1rem; top: -4rem; z-index: 100; border-radius: 0.6rem; background: var(--color-signal); color: var(--color-void); padding: 0.5rem 1rem; font-weight: 600; }
+    .skip-link:focus { top: 1rem; }
 }
+
+/*
+ * Motion hooks: reveal targets start hidden only when the motion module is going to run
+ * (html.motion is set in the <head> unless the user prefers reduced motion). GSAP's inline
+ * opacity wins once it animates; html.motion-off is a safety net if the module never loads.
+ */
+html.motion [data-reveal],
+html.motion [data-stagger] > * { opacity: 0; }
+html.motion-off [data-reveal],
+html.motion-off [data-stagger] > * { opacity: 1 !important; }
+html.motion [data-split]:not([data-split-done]) { opacity: 0; }
+html.motion-off [data-split] { opacity: 1 !important; }
