@@ -93,6 +93,8 @@ Route::middleware([SetLocale::class])->group(function () {
         Route::get('/_ui', fn () => view('dev.ui', [
             'paginator' => new \Illuminate\Pagination\LengthAwarePaginator(range(1, 12), 48, 12, (int) request('page', 2), ['path' => url('/_ui')]),
         ]))->name('dev.ui');
+        Route::get('/_ui/error/{code}', fn (int $code) => response()->view('errors.'.$code, [], $code))
+            ->whereIn('code', ['403', '404', '419', '500', '503'])->name('dev.error');
     }
 
     // Language switcher (stores locale in session)
